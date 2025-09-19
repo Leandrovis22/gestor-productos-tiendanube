@@ -387,7 +387,7 @@ const TiendaNubeProductManager = () => {
     }
     // Si solo hay un producto, ya se guardó, no hacemos nada más
     if (imageQueue.length === 1) {
-      alert('Producto guardado. No hay más imágenes en la cola.');
+      setAllProductsProcessed(true);
       return;
     }
 

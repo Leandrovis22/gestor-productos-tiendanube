@@ -149,6 +149,13 @@ ipcMain.handle('save-image', async (event, imagePath, imageData) => {
 
 ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   try {
+    // Verificar si el archivo ya existe para no sobrescribirlo
+    const exists = await fs.access(csvPath).then(() => true).catch(() => false);
+    if (exists) {
+      console.log('El archivo salida.csv ya existe. No se sobrescribirá.');
+      return { success: true, message: 'File already exists' };
+    }
+
     const csvContent = headers.join(';') + '\n';
     await fs.writeFile(csvPath, csvContent, 'latin1'); // Usar 'latin1' para codificación ANSI
     return { success: true };
