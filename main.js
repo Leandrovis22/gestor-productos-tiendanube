@@ -85,6 +85,7 @@ ipcMain.handle('read-csv', async (event, filePath) => {
       Papa.parse(csvContent, {
         header: true,
         delimiter: ';',
+        bom: true, // <-- Añade esta línea
         skipEmptyLines: true,
         complete: (results) => {
           resolve(results.data);
