@@ -150,7 +150,7 @@ ipcMain.handle('save-image', async (event, imagePath, imageData) => {
 ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   try {
     const csvContent = headers.join(';') + '\n';
-    await fs.writeFile(csvPath, csvContent, 'utf-8');
+    await fs.writeFile(csvPath, csvContent, 'latin1'); // Usar 'latin1' para codificación ANSI
     return { success: true };
   } catch (error) {
     console.error('Error creating CSV:', error);
@@ -184,9 +184,12 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
     const formatPrice = (priceStr) => {
       if (!priceStr) return '';
       try {
-        const cleanPrice = priceStr.replace(/[,$]/g, '').trim();
+        // 1. Como la entrada siempre es un entero, eliminamos todos los separadores de miles (puntos o comas).
+        //    Ej: "1.000" -> "1000", "1,000" -> "1000"
+        const cleanPrice = priceStr.replace(/[.,]/g, '');
         const price = parseFloat(cleanPrice);
-        return price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        // 2. Formatear a 'en-US' que usa "," para miles y "." para decimales.
+        return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       } catch {
         return '';
       }
@@ -266,7 +269,7 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
 
     // Escribir al CSV
     const csvRows = rows.map(row => row.join(';')).join('\n') + '\n';
-    await fs.appendFile(csvPath, csvRows, 'utf-8');
+    await fs.appendFile(csvPath, csvRows, 'latin1'); // Usar 'latin1' para codificación ANSI
 
     return { success: true, urlId };
   } catch (error) {

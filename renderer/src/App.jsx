@@ -41,6 +41,7 @@ const TiendaNubeProductManager = () => {
   const [productStock, setProductStock] = useState('10');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [originalCategories, setOriginalCategories] = useState('');
+  const [savedImages, setSavedImages] = useState(new Set());
   
   // Estados de variantes
   const [useColor, setUseColor] = useState(false);
@@ -185,11 +186,22 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  const loadImagesFromData = (data) => {
-    if (data && data.length > 0 && workingDirectory) {
-      const imageFiles = data.map(row => row.archivo).filter(Boolean);
+  const loadImagesFromData = async (data) => {
+    if (data && data.length > 0 && workingDirectory && window.electronAPI) {
+      const imageFiles = [];
+      for (const row of data) {
+        if (row.archivo) {
+          const imagePath = `${workingDirectory}/${row.archivo}`;
+          const exists = await window.electronAPI.fileExists(imagePath);
+          if (exists) {
+            imageFiles.push(row.archivo);
+          }
+        }
+      }
+  
       setImageQueue(imageFiles);
       setCurrentImageIndex(0);
+  
       if (imageFiles.length > 0) {
         loadCurrentImage(imageFiles[0], data);
       }
@@ -336,17 +348,29 @@ const TiendaNubeProductManager = () => {
     setSelectedSizes([]);
     setTypeValues('Modelo A\nModelo B\nModelo C');
     setVariantCombinations([]);
+    // No es necesario limpiar savedImages aquí, debe persistir
   };
 
   // Funciones de navegación
   const nextImage = () => {
+    if (!imageQueue.length) return;
+
+    // Guardar siempre el producto actual
     saveCurrentProduct();
-    
+
+    // Si solo hay un producto, ya se guardó, no hacemos nada más
+    if (imageQueue.length === 1) {
+      alert('Producto guardado. No hay más imágenes en la cola.');
+      return;
+    }
+
+    // Si estamos en el último producto
     if (currentImageIndex >= imageQueue.length - 1) {
       alert('Has procesado todos los productos de la cola.');
       return;
     }
-    
+
+    // Avanzar al siguiente producto
     const newIndex = currentImageIndex + 1;
     setCurrentImageIndex(newIndex);
     loadCurrentImage(imageQueue[newIndex]);
@@ -614,6 +638,13 @@ const TiendaNubeProductManager = () => {
     if (!outputCsvPath || !imageQueue.length) return;
     
     const filename = imageQueue[currentImageIndex];
+
+    // Evitar guardar más de una vez
+    if (savedImages.has(filename)) {
+      console.log(`Producto ${filename} ya fue guardado.`);
+      return;
+    }
+
     const name = productName.trim();
     const price = productPrice.trim();
     const stock = productStock.trim() || '10';
@@ -653,6 +684,9 @@ const TiendaNubeProductManager = () => {
     if (window.electronAPI) {
       window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
     }
+
+    // Marcar como guardado
+    setSavedImages(prev => new Set(prev).add(filename));
   };
 
   // Efectos
@@ -722,6 +756,7 @@ const TiendaNubeProductManager = () => {
             <button
               onClick={nextImage}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded"
+              disabled={imageQueue.length === 0 || (currentImageIndex >= imageQueue.length - 1 && !currentImage)}
             >
               <ChevronRight size={16} />
               Siguiente
