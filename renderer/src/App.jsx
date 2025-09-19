@@ -55,6 +55,7 @@ const TiendaNubeProductManager = () => {
   // Estados UI
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
+  const [activeTab, setActiveTab] = useState('general'); // 'general', 'variantes'
   const [showCategorySearch, setShowCategorySearch] = useState(false);
   
   // Referencias
@@ -693,8 +694,8 @@ const TiendaNubeProductManager = () => {
   }, [csvData, workingDirectory]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
+    <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
+      {/* Header (no cambia de tamaño) */}
       <div className="bg-gray-800 p-4 border-b border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -741,7 +742,7 @@ const TiendaNubeProductManager = () => {
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <div className="flex flex-1 overflow-hidden">
         {/* Panel izquierdo - Imagen */}
         <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col">
           <div className="flex-1 p-4">
@@ -797,31 +798,51 @@ const TiendaNubeProductManager = () => {
         </div>
 
         {/* Panel derecho - Formulario */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          {/* Nombre del producto */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Nombre del Producto:</label>
-            <textarea
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              className="w-full h-20 bg-gray-800 border border-gray-600 rounded px-3 py-2"
-              rows={3}
-            />
+        <div className="flex-1 flex flex-col overflow-y-auto bg-gray-900">
+          {/* Pestañas de navegación */}
+          <div className="flex border-b border-gray-700">
+            <button onClick={() => setActiveTab('general')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>General</button>
+            <button onClick={() => setActiveTab('variantes')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'variantes' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>Variantes</button>
           </div>
 
-          {/* Categorías */}
-          <div className="mb-6">
-            <div className="border border-gray-600 rounded">
-              <div className="p-3 bg-gray-800 border-b border-gray-600">
-                <h3 className="font-medium">Categorías</h3>
-              </div>
-              
-              {/* Vista colapsada */}
-              <div
-                className="p-3 bg-gray-700 cursor-pointer hover:bg-gray-600"
-                onMouseEnter={() => setCategoriesExpanded(true)}
-              >
-                <div className="flex items-center justify-between">
+          <div className="p-6 overflow-y-auto">
+            {/* Contenido de la Pestaña General (Producto + Categorías) */}
+            {activeTab === 'general' && (
+              <div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">Nombre del Producto:</label>
+                  <textarea
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
+                    className="w-full h-24 bg-gray-800 border border-gray-600 rounded px-3 py-2"
+                    rows={1}
+                  />
+                </div>
+                <div className="flex gap-4 mb-6">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-2">Precio:</label>
+                    <input
+                      type="text"
+                      value={productPrice}
+                      onChange={(e) => setProductPrice(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium mb-2">Stock (si no hay variantes):</label>
+                    <input
+                      type="text"
+                      value={productStock}
+                      onChange={(e) => setProductStock(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                {/* Sección de Categorías */}
+                <h3 className="text-lg font-medium mb-2">Categorías</h3>
+                <div className="bg-gray-800 border border-gray-700 rounded p-4">
+                  <p className="text-sm text-gray-400 mb-2">Categorías seleccionadas:</p>
                   <span className="text-sm text-gray-300">
                     {selectedCategories.length > 0 
                       ? selectedCategories.length <= 3 
@@ -830,16 +851,20 @@ const TiendaNubeProductManager = () => {
                       : 'Ninguna categoría seleccionada'
                     }
                   </span>
-                  <span className="text-gray-400">▼</span>
+                  <button onClick={() => setCategoriesExpanded(true)} className="mt-3 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded">
+                    Editar Categorías
+                  </button>
                 </div>
-              </div>
 
-              {/* Vista expandida */}
-              {categoriesExpanded && (
-                <div
-                  className="p-3 bg-gray-700"
-                  onMouseLeave={() => setCategoriesExpanded(false)}
-                >
+                {/* Modal de Categorías */}
+                {categoriesExpanded && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-gray-800 rounded-lg shadow-xl w-1/3 max-w-2xl flex flex-col">
+                      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                        <h3 className="font-medium">Seleccionar Categorías</h3>
+                        <button onClick={() => setCategoriesExpanded(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
+                      </div>
+                      <div className="p-4">
                   <div className="flex gap-2 mb-3">
                     <button
                       onClick={selectAllCategories}
@@ -883,7 +908,7 @@ const TiendaNubeProductManager = () => {
                     </div>
                   )}
 
-                  <div className="max-h-48 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto border border-gray-700 rounded p-2">
                     {filteredCategories.map(category => (
                       <label key={category} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-600 px-2 rounded">
                         <input
@@ -896,217 +921,202 @@ const TiendaNubeProductManager = () => {
                       </label>
                     ))}
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Precio y Stock */}
-          <div className="mb-6 flex gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-2">Precio:</label>
-              <input
-                type="text"
-                value={productPrice}
-                onChange={(e) => setProductPrice(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-2">Stock:</label>
-              <input
-                type="text"
-                value={productStock}
-                onChange={(e) => setProductStock(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2"
-              />
-            </div>
-          </div>
-
-          {/* Variantes */}
-          <div className="mb-6">
-            <div className="border border-gray-600 rounded">
-              <div className="p-3 bg-gray-800 border-b border-gray-600">
-                <h3 className="font-medium">Variantes</h3>
-                <p className="text-sm text-gray-400 mt-1">
-                  Selecciona las propiedades que tendrá el producto. Se generarán todas las combinaciones.
-                </p>
-              </div>
-
-              <div className="p-4">
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  {/* Color */}
-                  <div className="border border-gray-600 rounded p-3">
-                    <label className="flex items-center gap-2 mb-3">
-                      <input
-                        type="checkbox"
-                        checked={useColor}
-                        onChange={(e) => setUseColor(e.target.checked)}
-                      />
-                      <span className="font-medium">Color</span>
-                    </label>
-                    
-                    {useColor && (
-                      <div>
-                        <div className="max-h-32 overflow-y-auto mb-2 bg-gray-800 rounded p-2">
-                          {predefinedColors.map(color => (
-                            <label key={color} className="flex items-center gap-2 py-1 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={selectedColors.includes(color)}
-                                onChange={() => toggleColor(color)}
-                                className="rounded"
-                              />
-                              <span className="text-sm">{color}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setSelectedColors([...predefinedColors])}
-                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                          >
-                            Todos
-                          </button>
-                          <button
-                            onClick={() => setSelectedColors([])}
-                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                          >
-                            Ninguno
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
-
-                  {/* Talle */}
-                  <div className="border border-gray-600 rounded p-3">
-                    <label className="flex items-center gap-2 mb-3">
-                      <input
-                        type="checkbox"
-                        checked={useSize}
-                        onChange={(e) => setUseSize(e.target.checked)}
-                      />
-                      <span className="font-medium">Talle</span>
-                    </label>
-                    
-                    {useSize && (
-                      <div>
-                        <div className="grid grid-cols-2 gap-1 mb-2">
-                          {predefinedSizes.map(size => (
-                            <label key={size} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={selectedSizes.includes(size)}
-                                onChange={() => toggleSize(size)}
-                                className="rounded"
-                              />
-                              <span className="text-sm">{size}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setSelectedSizes([...predefinedSizes])}
-                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                          >
-                            Todos
-                          </button>
-                          <button
-                            onClick={() => setSelectedSizes([])}
-                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                          >
-                            Ninguno
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                  <div className="p-4 bg-gray-900 border-t border-gray-700 text-right">
+                      <button onClick={() => setCategoriesExpanded(false)} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded">Cerrar</button>
                   </div>
-
-                  {/* Tipo personalizado */}
-                  <div className="border border-gray-600 rounded p-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        type="checkbox"
-                        checked={useType}
-                        onChange={(e) => setUseType(e.target.checked)}
-                      />
-                      <input
-                        type="text"
-                        value={typeName}
-                        onChange={(e) => setTypeName(e.target.value)}
-                        className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-                      />
-                    </div>
-                    
-                    {useType && (
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Valores:</label>
-                        <textarea
-                          value={typeValues}
-                          onChange={(e) => setTypeValues(e.target.value)}
-                          className="w-full h-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">(Un valor por línea)</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={generateVariantCombinations}
-                  className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded mb-4"
-                >
-                  Generar Combinaciones
-                </button>
-
-                {/* Lista de combinaciones */}
-                {variantCombinations.length > 0 && (
-                  <div className="border border-gray-600 rounded">
-                    <div className="p-3 bg-gray-800 border-b border-gray-600">
-                      <h4 className="font-medium">
-                        Combinaciones generadas ({variantCombinations.length})
-                      </h4>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {variantCombinations.map((variant, index) => (
-                        <div key={variant.id} className="p-3 border-b border-gray-700 last:border-b-0">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <span className="text-sm font-medium">{index + 1}. </span>
-                              {variant.properties.map((prop, i) => (
-                                <span key={i} className="text-sm">
-                                  {prop.value && `${prop.name}: ${prop.value}`}
-                                  {prop.value && i < variant.properties.length - 1 && variant.properties[i + 1].value && ' + '}
-                                </span>
-                              ))}
-                            </div>
-                            <div className="flex items-center gap-2 ml-4">
-                              <span className="text-sm">$</span>
-                              <input
-                                type="text"
-                                value={variant.price}
-                                onChange={(e) => updateVariantPrice(variant.id, e.target.value)}
-                                className="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-                              />
-                              <span className="text-sm ml-2">Stock:</span>
-                              <input
-                                type="text"
-                                value={variant.stock}
-                                onChange={(e) => updateVariantStock(variant.id, e.target.value)}
-                                className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+            )}
 
+            {/* Contenido de la Pestaña Variantes */}
+            {activeTab === 'variantes' && (
+              <div>
+                <div className="border border-gray-700 rounded">
+                  <div className="p-3 bg-gray-800 border-b border-gray-600">
+                    <h3 className="font-medium">Variantes</h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Selecciona las propiedades que tendrá el producto. Se generarán todas las combinaciones.
+                    </p>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      {/* Color */}
+                      <div className="border border-gray-600 rounded p-3">
+                        <label className="flex items-center gap-2 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={useColor}
+                            onChange={(e) => setUseColor(e.target.checked)}
+                          />
+                          <span className="font-medium">Color</span>
+                        </label>
+                        
+                        {useColor && (
+                          <div>
+                            <div className="max-h-32 overflow-y-auto mb-2 bg-gray-800 rounded p-2">
+                              {predefinedColors.map(color => (
+                                <label key={color} className="flex items-center gap-2 py-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedColors.includes(color)}
+                                    onChange={() => toggleColor(color)}
+                                    className="rounded"
+                                  />
+                                  <span className="text-sm">{color}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => setSelectedColors([...predefinedColors])}
+                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                              >
+                                Todos
+                              </button>
+                              <button
+                                onClick={() => setSelectedColors([])}
+                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                              >
+                                Ninguno
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Talle */}
+                      <div className="border border-gray-600 rounded p-3">
+                        <label className="flex items-center gap-2 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={useSize}
+                            onChange={(e) => setUseSize(e.target.checked)}
+                          />
+                          <span className="font-medium">Talle</span>
+                        </label>
+                        
+                        {useSize && (
+                          <div>
+                            <div className="grid grid-cols-2 gap-1 mb-2">
+                              {predefinedSizes.map(size => (
+                                <label key={size} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedSizes.includes(size)}
+                                    onChange={() => toggleSize(size)}
+                                    className="rounded"
+                                  />
+                                  <span className="text-sm">{size}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => setSelectedSizes([...predefinedSizes])}
+                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                              >
+                                Todos
+                              </button>
+                              <button
+                                onClick={() => setSelectedSizes([])}
+                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                              >
+                                Ninguno
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tipo personalizado */}
+                      <div className="border border-gray-600 rounded p-3">
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={useType}
+                            onChange={(e) => setUseType(e.target.checked)}
+                          />
+                          <input
+                            type="text"
+                            value={typeName}
+                            onChange={(e) => setTypeName(e.target.value)}
+                            className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
+                          />
+                        </div>
+                        
+                        {useType && (
+                          <div>
+                            <label className="block text-xs text-gray-400 mb-1">Valores:</label>
+                            <textarea
+                              value={typeValues}
+                              onChange={(e) => setTypeValues(e.target.value)}
+                              className="w-full h-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">(Un valor por línea)</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={generateVariantCombinations}
+                      className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded mb-4"
+                    >
+                      Generar Combinaciones
+                    </button>
+
+                    {/* Lista de combinaciones */}
+                    {variantCombinations.length > 0 && (
+                      <div className="border border-gray-600 rounded">
+                        <div className="p-3 bg-gray-800 border-b border-gray-600">
+                          <h4 className="font-medium">
+                            Combinaciones generadas ({variantCombinations.length})
+                          </h4>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                          {variantCombinations.map((variant, index) => (
+                            <div key={variant.id} className="p-3 border-b border-gray-700 last:border-b-0">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <span className="text-sm font-medium">{index + 1}. </span>
+                                  {variant.properties.map((prop, i) => (
+                                    <span key={i} className="text-sm">
+                                      {prop.value && `${prop.name}: ${prop.value}`}
+                                      {prop.value && i < variant.properties.length - 1 && variant.properties[i + 1].value && ' + '}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-2 ml-4">
+                                  <span className="text-sm">$</span>
+                                  <input
+                                    type="text"
+                                    value={variant.price}
+                                    onChange={(e) => updateVariantPrice(variant.id, e.target.value)}
+                                    className="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
+                                  />
+                                  <span className="text-sm ml-2">Stock:</span>
+                                  <input
+                                    type="text"
+                                    value={variant.stock}
+                                    onChange={(e) => updateVariantStock(variant.id, e.target.value)}
+                                    className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
