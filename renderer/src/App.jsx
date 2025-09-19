@@ -55,6 +55,7 @@ const TiendaNubeProductManager = () => {
   
   // Estados UI
   const [activeTab, setActiveTab] = useState('general'); // 'general', 'variantes'
+  const [allProductsProcessed, setAllProductsProcessed] = useState(false);
   
   // Referencias
   const canvasRef = useRef(null);
@@ -150,15 +151,8 @@ const TiendaNubeProductManager = () => {
         const result = await window.electronAPI.selectDirectory();
         if (result.directoryPath && !result.canceled) {
           setWorkingDirectory(result.directoryPath);
+          setAllProductsProcessed(false); // Reiniciar estado al seleccionar nueva carpeta
           await createOutputCsv(result.directoryPath);
-          // Crear carpetas necesarias
-          await window.electronAPI.createDirectory(`${result.directoryPath}/saltadas`);
-          await window.electronAPI.createDirectory(`${result.directoryPath}/procesadas`);
-          
-          // Si ya tenemos datos CSV, recargar las imágenes
-          if (csvData.length > 0) {
-            loadImagesFromData(csvData);
-          }
         }
       } else {
         // Para desarrollo web, usar un directorio simulado
@@ -169,6 +163,23 @@ const TiendaNubeProductManager = () => {
       console.error('Error selecting directory:', error);
     }
   };
+
+  // Efecto para cargar imágenes cuando el directorio de trabajo cambia
+  useEffect(() => {
+    const setupDirectory = async () => {
+      if (workingDirectory && window.electronAPI) {
+        // Crear carpetas necesarias
+        await window.electronAPI.createDirectory(`${workingDirectory}/saltadas`);
+        await window.electronAPI.createDirectory(`${workingDirectory}/procesadas`);
+        
+        // Si ya tenemos datos CSV, cargar las imágenes
+        if (csvData.length > 0) {
+          loadImagesFromData(csvData);
+        }
+      }
+    };
+    setupDirectory();
+  }, [workingDirectory, csvData]); // Se ejecuta cuando workingDirectory o csvData cambian
 
   const loadCsvData = async (filePath) => {
     if (window.electronAPI) {
@@ -354,10 +365,26 @@ const TiendaNubeProductManager = () => {
   // Funciones de navegación
   const nextImage = () => {
     if (!imageQueue.length) return;
+    const filename = imageQueue[currentImageIndex];
 
     // Guardar siempre el producto actual
     saveCurrentProduct();
 
+    // Mover la imagen a la carpeta "procesadas"
+    if (window.electronAPI && workingDirectory) {
+      const sourcePath = `${workingDirectory}/${filename}`;
+      const destPath = `${workingDirectory}/procesadas/${filename}`;
+      
+      window.electronAPI.fileExists(sourcePath).then(exists => {
+        if (exists) {
+          window.electronAPI.moveFile(sourcePath, destPath)
+            .then(result => {
+              if (result.success) console.log(`Imagen ${filename} movida a procesadas.`);
+              else console.error('Error moviendo archivo:', result.error);
+            });
+        }
+      });
+    }
     // Si solo hay un producto, ya se guardó, no hacemos nada más
     if (imageQueue.length === 1) {
       alert('Producto guardado. No hay más imágenes en la cola.');
@@ -366,19 +393,27 @@ const TiendaNubeProductManager = () => {
 
     // Si estamos en el último producto
     if (currentImageIndex >= imageQueue.length - 1) {
-      alert('Has procesado todos los productos de la cola.');
+      setAllProductsProcessed(true);
       return;
     }
 
     // Avanzar al siguiente producto
     const newIndex = currentImageIndex + 1;
     setCurrentImageIndex(newIndex);
+    // Limpiar la imagen actual para evitar que se muestre la anterior mientras carga la nueva
+    setCurrentImage(null); 
     loadCurrentImage(imageQueue[newIndex]);
   };
 
   const skipImage = async () => {
     if (currentImageIndex < imageQueue.length && workingDirectory) {
       const filename = imageQueue[currentImageIndex];
+
+      // Verificar si la imagen ya fue guardada
+      if (savedImages.has(filename)) {
+        alert('Esta imagen ya ha sido guardada y no puede ser saltada. Si cometiste un error, deberás editar el CSV manualmente.');
+        return;
+      }
       
       try {
         // Mover imagen a carpeta saltadas
@@ -715,6 +750,36 @@ const TiendaNubeProductManager = () => {
     }
   }, [csvData, workingDirectory]);
 
+  const restartApp = () => {
+    // Reiniciar todos los estados a sus valores iniciales
+    setCsvData([]);
+    setCsvPath('');
+    setWorkingDirectory('');
+    setImageQueue([]);
+    setCurrentImageIndex(0);
+    setCurrentImage(null);
+    setOriginalImage(null);
+    setOutputCsvPath('');
+    setZoomFactor(1.0);
+    setMaskCanvas(null);
+    setProductName('');
+    setProductPrice('');
+    setProductStock('10');
+    setSelectedCategories([]);
+    setOriginalCategories('');
+    setSavedImages(new Set());
+    setUseColor(false);
+    setUseSize(false);
+    setUseType(false);
+    setSelectedColors([]);
+    setSelectedSizes([]);
+    setTypeName('Tipo');
+    setTypeValues('Modelo A\nModelo B\nModelo C');
+    setVariantCombinations([]);
+    setActiveTab('general');
+    setAllProductsProcessed(false);
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
       {/* Header (no cambia de tamaño) */}
@@ -765,6 +830,26 @@ const TiendaNubeProductManager = () => {
         </div>
       </div>
 
+      {allProductsProcessed ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center">
+          <h2 className="text-2xl font-bold mb-4">¡Has procesado todos los productos!</h2>
+          <p className="text-gray-400 mb-8">El archivo `salida.csv` ha sido guardado en tu carpeta de trabajo.</p>
+          <div className="flex gap-4">
+            <button
+              onClick={restartApp}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded"
+            >
+              Reiniciar
+            </button>
+            <button
+              onClick={() => window.close()}
+              className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded"
+            >
+              Cerrar Aplicación
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-1 overflow-hidden">
         {/* Panel izquierdo - Imagen */}
         <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -1091,6 +1176,7 @@ const TiendaNubeProductManager = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
