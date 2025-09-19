@@ -53,10 +53,7 @@ const TiendaNubeProductManager = () => {
   const [variantCombinations, setVariantCombinations] = useState([]);
   
   // Estados UI
-  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
-  const [categorySearch, setCategorySearch] = useState('');
   const [activeTab, setActiveTab] = useState('general'); // 'general', 'variantes'
-  const [showCategorySearch, setShowCategorySearch] = useState(false);
   
   // Referencias
   const canvasRef = useRef(null);
@@ -524,18 +521,9 @@ const TiendaNubeProductManager = () => {
     );
   };
 
-  const selectAllCategories = () => {
-    setSelectedCategories([...categories]);
-  };
-
   const clearAllCategories = () => {
     setSelectedCategories([]);
   };
-
-  const filteredCategories = categories.filter(cat => 
-    cat.toLowerCase().includes(categorySearch.toLowerCase())
-  );
-
   // Funciones de variantes
   const toggleColor = (color) => {
     setSelectedColors(prev => 
@@ -809,16 +797,16 @@ const TiendaNubeProductManager = () => {
             {/* Contenido de la Pestaña General (Producto + Categorías) */}
             {activeTab === 'general' && (
               <div>
-                <div className="mb-4">
+                <div className="mb-1">
                   <label className="block text-sm font-medium mb-2">Nombre del Producto:</label>
                   <textarea
                     value={productName}
                     onChange={(e) => setProductName(e.target.value)}
-                    className="w-full h-24 bg-gray-800 border border-gray-600 rounded px-3 py-2"
-                    rows={1}
+                    className="w-full h-[3rem] bg-gray-800 border border-gray-600 rounded px-3 py-2"
+                    rows={3}
                   />
                 </div>
-                <div className="flex gap-4 mb-6">
+                <div className="flex gap-4 mb-1">
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-2">Precio:</label>
                     <input
@@ -840,94 +828,43 @@ const TiendaNubeProductManager = () => {
                 </div>
 
                 {/* Sección de Categorías */}
-                <h3 className="text-lg font-medium mb-2">Categorías</h3>
-                <div className="bg-gray-800 border border-gray-700 rounded p-4">
-                  <p className="text-sm text-gray-400 mb-2">Categorías seleccionadas:</p>
-                  <span className="text-sm text-gray-300">
-                    {selectedCategories.length > 0 
-                      ? selectedCategories.length <= 3 
-                        ? selectedCategories.join(', ')
-                        : `${selectedCategories.slice(0, 3).join(', ')} y ${selectedCategories.length - 3} más...`
-                      : 'Ninguna categoría seleccionada'
-                    }
-                  </span>
-                  <button onClick={() => setCategoriesExpanded(true)} className="mt-3 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded">
-                    Editar Categorías
-                  </button>
+                <div className="mt-4">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium mb-2">Categorías Activas</h3>
+                    <div className="p-3 bg-gray-800 border border-gray-700 rounded min-h-[60px]">
+                      {selectedCategories.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedCategories.map(cat => (
+                            <span key={cat} className="bg-blue-600 text-white text-xs font-medium px-2.5 py-1 rounded-full">
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">Ninguna categoría seleccionada.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-medium mb-2">Todas las Categorías</h3>
+                  <div className="max-h-64 overflow-y-auto border border-gray-700 rounded p-2 bg-gray-800">
+                    <div className="grid grid-cols-2 gap-2">
+                      {categories.map(category => (
+                        <button
+                          key={category}
+                          onClick={() => toggleCategory(category)}
+                          className={`w-full text-left text-sm px-3 py-2 rounded ${
+                            selectedCategories.includes(category)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-700 hover:bg-gray-600'
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-
-                {/* Modal de Categorías */}
-                {categoriesExpanded && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-gray-800 rounded-lg shadow-xl w-1/3 max-w-2xl flex flex-col">
-                      <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                        <h3 className="font-medium">Seleccionar Categorías</h3>
-                        <button onClick={() => setCategoriesExpanded(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
-                      </div>
-                      <div className="p-4">
-                  <div className="flex gap-2 mb-3">
-                    <button
-                      onClick={selectAllCategories}
-                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm"
-                    >
-                      Seleccionar Todo
-                    </button>
-                    <button
-                      onClick={clearAllCategories}
-                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm"
-                    >
-                      Limpiar Todo
-                    </button>
-                    <button
-                      onClick={() => setShowCategorySearch(!showCategorySearch)}
-                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-sm flex items-center gap-1"
-                    >
-                      <Search size={14} />
-                      Buscar
-                    </button>
-                  </div>
-
-                  {showCategorySearch && (
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        type="text"
-                        value={categorySearch}
-                        onChange={(e) => setCategorySearch(e.target.value)}
-                        placeholder="Buscar categorías..."
-                        className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
-                      />
-                      <button
-                        onClick={() => {
-                          setShowCategorySearch(false);
-                          setCategorySearch('');
-                        }}
-                        className="p-1 bg-gray-600 hover:bg-gray-500 rounded"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="max-h-64 overflow-y-auto border border-gray-700 rounded p-2">
-                    {filteredCategories.map(category => (
-                      <label key={category} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-600 px-2 rounded">
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.includes(category)}
-                          onChange={() => toggleCategory(category)}
-                          className="rounded"
-                        />
-                        <span className="text-sm">{category}</span>
-                      </label>
-                    ))}
-                  </div>
-                  </div>
-                  <div className="p-4 bg-gray-900 border-t border-gray-700 text-right">
-                      <button onClick={() => setCategoriesExpanded(false)} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded">Cerrar</button>
-                  </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
