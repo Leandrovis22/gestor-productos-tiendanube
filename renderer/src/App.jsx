@@ -447,6 +447,9 @@ const TiendaNubeProductManager = () => {
         if (newQueue.length > 0) {
           const nextIndex = currentImageIndex >= newQueue.length ? currentImageIndex - 1 : currentImageIndex;
           loadCurrentImage(newQueue[nextIndex], updatedCsvData);
+        } else {
+          // Si no quedan más imágenes, mostrar la pantalla final
+          setAllProductsProcessed(true);
         }
       } catch (error) {
         console.error('Error skipping image:', error);
