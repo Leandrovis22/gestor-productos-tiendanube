@@ -110,7 +110,7 @@ const TiendaNubeProductManager = () => {
         const result = await window.electronAPI.selectFile([
           { name: 'CSV Files', extensions: ['csv'] }
         ]);
-        if (result.filePath) {
+        if (result.filePath && !result.canceled) {
           setCsvPath(result.filePath);
           loadCsvData(result.filePath);
         }
@@ -149,9 +149,17 @@ const TiendaNubeProductManager = () => {
     try {
       if (window.electronAPI) {
         const result = await window.electronAPI.selectDirectory();
-        if (result.directoryPath) {
+        if (result.directoryPath && !result.canceled) {
           setWorkingDirectory(result.directoryPath);
-          createOutputCsv(result.directoryPath);
+          await createOutputCsv(result.directoryPath);
+          // Crear carpetas necesarias
+          await window.electronAPI.createDirectory(`${result.directoryPath}/saltadas`);
+          await window.electronAPI.createDirectory(`${result.directoryPath}/procesadas`);
+          
+          // Si ya tenemos datos CSV, recargar las imágenes
+          if (csvData.length > 0) {
+            loadImagesFromData(csvData);
+          }
         }
       } else {
         // Para desarrollo web, usar un directorio simulado
@@ -163,19 +171,24 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  const loadCsvData = (filePath) => {
+  const loadCsvData = async (filePath) => {
     if (window.electronAPI) {
-      window.electronAPI.readCsv(filePath).then(data => {
+      try {
+        const data = await window.electronAPI.readCsv(filePath);
         setCsvData(data);
-        loadImagesFromData(data);
-      }).catch(error => {
+        // Si ya tenemos directorio de trabajo, cargar imágenes
+        if (workingDirectory) {
+          loadImagesFromData(data);
+        }
+      } catch (error) {
         console.error('Error loading CSV:', error);
-      });
+        alert(`Error al cargar el archivo CSV: ${error.message}`);
+      }
     }
   };
 
   const loadImagesFromData = (data) => {
-    if (data && data.length > 0) {
+    if (data && data.length > 0 && workingDirectory) {
       const imageFiles = data.map(row => row.archivo).filter(Boolean);
       setImageQueue(imageFiles);
       setCurrentImageIndex(0);
@@ -185,7 +198,7 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  const createOutputCsv = (directory) => {
+  const createOutputCsv = async (directory) => {
     const outputPath = `${directory}/salida.csv`;
     setOutputCsvPath(outputPath);
     
@@ -204,23 +217,44 @@ const TiendaNubeProductManager = () => {
     ];
 
     if (window.electronAPI) {
-      window.electronAPI.createCsv(outputPath, headers);
+      await window.electronAPI.createCsv(outputPath, headers);
     }
   };
 
   // Funciones de imagen
   const loadCurrentImage = async (filename, data = csvData) => {
-    if (window.electronAPI && workingDirectory) {
+    if (!filename || !workingDirectory) {
+      console.error('Missing filename or working directory');
+      return;
+    }
+
+    if (window.electronAPI) {
       try {
         const imagePath = `${workingDirectory}/${filename}`;
+        console.log('Loading image from:', imagePath);
+        
+        // Verificar si el archivo existe
+        const exists = await window.electronAPI.fileExists(imagePath);
+        if (!exists) {
+          console.error('Image file does not exist:', imagePath);
+          return;
+        }
+        
         const imageData = await window.electronAPI.loadImage(imagePath);
         
         const img = new Image();
         img.onload = () => {
+          console.log('Image loaded successfully:', filename);
           setCurrentImage(img);
           setOriginalImage(img);
+          setZoomFactor(1.0);
+          setMaskCanvas(null);
           loadProductData(filename, data);
-          displayImage(img);
+          // Usar setTimeout para asegurar que el canvas esté renderizado
+          setTimeout(() => displayImage(img), 100);
+        };
+        img.onerror = (error) => {
+          console.error('Error loading image:', error);
         };
         img.src = imageData;
       } catch (error) {
@@ -232,8 +266,9 @@ const TiendaNubeProductManager = () => {
       img.onload = () => {
         setCurrentImage(img);
         setOriginalImage(img);
+        setZoomFactor(1.0);
         loadProductData(filename, data);
-        displayImage(img);
+        setTimeout(() => displayImage(img), 100);
       };
       img.src = `https://picsum.photos/400/400?random=${Math.random()}`;
     }
@@ -241,15 +276,21 @@ const TiendaNubeProductManager = () => {
 
   const displayImage = (img) => {
     const canvas = canvasRef.current;
-    if (!canvas || !img) return;
+    if (!canvas || !img) {
+      console.log('Canvas or image not available for display');
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
-    const canvasWidth = canvas.offsetWidth;
-    const canvasHeight = canvas.offsetHeight;
+    const canvasRect = canvas.getBoundingClientRect();
+    const canvasWidth = canvasRect.width;
+    const canvasHeight = canvasRect.height;
     
+    // Ajustar el tamaño del canvas a su tamaño visual
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
     
+    // Calcular escala para ajustar la imagen al canvas
     const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height) * zoomFactor;
     const scaledWidth = img.width * scale;
     const scaledHeight = img.height * scale;
@@ -260,10 +301,15 @@ const TiendaNubeProductManager = () => {
     setDisplayOffset({ x: offsetX, y: offsetY });
     setDisplaySize({ width: scaledWidth, height: scaledHeight });
     
+    // Limpiar canvas y dibujar fondo
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     ctx.fillStyle = '#333';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Dibujar la imagen
     ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+    
+    console.log('Image displayed successfully');
   };
 
   const loadProductData = (filename, data = csvData) => {
@@ -308,18 +354,46 @@ const TiendaNubeProductManager = () => {
     loadCurrentImage(imageQueue[newIndex]);
   };
 
-  const skipImage = () => {
-    if (currentImageIndex < imageQueue.length) {
-      // En una implementación completa, aquí moveríamos la imagen a la carpeta "saltadas"
-      const newQueue = imageQueue.filter((_, index) => index !== currentImageIndex);
-      setImageQueue(newQueue);
+  const skipImage = async () => {
+    if (currentImageIndex < imageQueue.length && workingDirectory) {
+      const filename = imageQueue[currentImageIndex];
       
-      if (currentImageIndex >= newQueue.length && currentImageIndex > 0) {
-        setCurrentImageIndex(currentImageIndex - 1);
-      }
-      
-      if (newQueue.length > 0) {
-        loadCurrentImage(newQueue[currentImageIndex] || newQueue[currentImageIndex - 1]);
+      try {
+        // Mover imagen a carpeta saltadas
+        const sourcePath = `${workingDirectory}/${filename}`;
+        const destPath = `${workingDirectory}/saltadas/${filename}`;
+        
+        const exists = await window.electronAPI.fileExists(sourcePath);
+        if (exists) {
+          const result = await window.electronAPI.moveFile(sourcePath, destPath);
+          if (result.success) {
+            console.log(`Image ${filename} moved to saltadas folder`);
+          } else {
+            console.error('Error moving file:', result.error);
+          }
+        }
+        
+        // Actualizar CSV data removiendo la imagen saltada
+        const updatedCsvData = csvData.filter(row => row.archivo !== filename);
+        setCsvData(updatedCsvData);
+        
+        // Actualizar cola de imágenes
+        const newQueue = imageQueue.filter((_, index) => index !== currentImageIndex);
+        setImageQueue(newQueue);
+        
+        // Ajustar índice actual
+        if (currentImageIndex >= newQueue.length && currentImageIndex > 0) {
+          setCurrentImageIndex(currentImageIndex - 1);
+        }
+        
+        // Cargar siguiente imagen
+        if (newQueue.length > 0) {
+          const nextIndex = currentImageIndex >= newQueue.length ? currentImageIndex - 1 : currentImageIndex;
+          loadCurrentImage(newQueue[nextIndex], updatedCsvData);
+        }
+      } catch (error) {
+        console.error('Error skipping image:', error);
+        alert(`Error al saltar la imagen: ${error.message}`);
       }
     }
   };
@@ -346,6 +420,7 @@ const TiendaNubeProductManager = () => {
 
   // Funciones de dibujo y borrado
   const startDrawing = (e) => {
+    if (!currentImage) return;
     setIsDrawing(true);
     drawBrush(e);
   };
@@ -365,52 +440,77 @@ const TiendaNubeProductManager = () => {
       return;
     }
     
-    // Crear o actualizar máscara
+    // Crear máscara si no existe
     if (!maskCanvas) {
       const mask = document.createElement('canvas');
       mask.width = currentImage.width;
       mask.height = currentImage.height;
+      const maskCtx = mask.getContext('2d');
+      maskCtx.fillStyle = 'black';
+      maskCtx.fillRect(0, 0, mask.width, mask.height);
       setMaskCanvas(mask);
     }
     
     // Dibujar en la máscara
-    const maskCtx = maskCanvas?.getContext('2d');
+    const maskCtx = maskCanvas.getContext('2d');
     if (maskCtx) {
-      const scale = currentImage.width / displaySize.width;
-      const imgX = (x - displayOffset.x) * scale;
-      const imgY = (y - displayOffset.y) * scale;
-      const brushRadius = brushSize * scale / 2;
+      const scaleX = currentImage.width / displaySize.width;
+      const scaleY = currentImage.height / displaySize.height;
+      const imgX = (x - displayOffset.x) * scaleX;
+      const imgY = (y - displayOffset.y) * scaleY;
+      const brushRadius = brushSize * Math.max(scaleX, scaleY) / 2;
       
       maskCtx.fillStyle = 'white';
       maskCtx.beginPath();
       maskCtx.arc(imgX, imgY, brushRadius, 0, Math.PI * 2);
       maskCtx.fill();
-      
-      // Mostrar la máscara en el canvas principal
-      const mainCtx = canvas.getContext('2d');
-      mainCtx.globalAlpha = 0.5;
-      mainCtx.fillStyle = 'red';
-      mainCtx.beginPath();
-      mainCtx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-      mainCtx.fill();
-      mainCtx.globalAlpha = 1.0;
     }
+    
+    // Mostrar la máscara en el canvas principal
+    const mainCtx = canvas.getContext('2d');
+    mainCtx.save();
+    mainCtx.globalAlpha = 0.5;
+    mainCtx.fillStyle = 'red';
+    mainCtx.beginPath();
+    mainCtx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+    mainCtx.fill();
+    mainCtx.restore();
   };
 
-  const stopDrawing = () => {
+  const stopDrawing = async () => {
     if (isDrawing) {
       setIsDrawing(false);
-      performInpainting();
+      await performInpainting();
     }
   };
 
-  const performInpainting = () => {
-    // En una implementación completa, aquí usaríamos OpenCV.js o similar
-    // Por ahora, simularemos el borrado generativo
-    if (maskCanvas && currentImage) {
+  const performInpainting = async () => {
+    if (!maskCanvas || !currentImage || !workingDirectory) return;
+    
+    try {
+      const filename = imageQueue[currentImageIndex];
+      const imagePath = `${workingDirectory}/${filename}`;
+      
+      // Por ahora, simular el inpainting - en una implementación real
+      // aquí enviarías la máscara al proceso de inpainting
       console.log('Performing inpainting...');
-      // Aquí iría la lógica de inpainting
-      displayImage(currentImage);
+      
+      if (window.electronAPI) {
+        // Convertir máscara a datos
+        const maskData = maskCanvas.toDataURL();
+        const processedImage = await window.electronAPI.processInpainting(imagePath, maskData);
+        
+        // Cargar la imagen procesada
+        const img = new Image();
+        img.onload = () => {
+          setCurrentImage(img);
+          setMaskCanvas(null);
+          displayImage(img);
+        };
+        img.src = processedImage;
+      }
+    } catch (error) {
+      console.error('Error performing inpainting:', error);
     }
   };
 
@@ -572,6 +672,25 @@ const TiendaNubeProductManager = () => {
       displayImage(currentImage);
     }
   }, [zoomFactor, currentImage]);
+
+  // Efecto para manejar el redimensionado del canvas
+  useEffect(() => {
+    const handleResize = () => {
+      if (currentImage) {
+        setTimeout(() => displayImage(currentImage), 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [currentImage]);
+
+  // Efecto para cargar la primera imagen cuando se configuren CSV y directorio
+  useEffect(() => {
+    if (csvData.length > 0 && workingDirectory && imageQueue.length > 0 && currentImageIndex === 0) {
+      loadCurrentImage(imageQueue[0], csvData);
+    }
+  }, [csvData, workingDirectory]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -988,14 +1107,6 @@ const TiendaNubeProductManager = () => {
             </div>
           </div>
 
-          {/* Botón de guardado */}
-          <button
-            onClick={saveCurrentProduct}
-            className="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-medium flex items-center justify-center gap-2"
-          >
-            <Save size={16} />
-            Guardar Producto
-          </button>
         </div>
       </div>
     </div>
