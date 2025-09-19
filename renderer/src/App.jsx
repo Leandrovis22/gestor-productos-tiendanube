@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
+import {
   ChevronLeft, 
   ChevronRight, 
   FolderOpen, 
@@ -16,11 +16,36 @@ import {
 } from 'lucide-react';
 import Papa from 'papaparse';
 
+const LocalImage = ({ path, alt, className }) => {
+  const [src, setSrc] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadImage = async () => {
+      if (window.electronAPI && path) {
+        try {
+          const imageData = await window.electronAPI.loadImage(path);
+          if (isMounted) {
+            setSrc(imageData);
+          }
+        } catch (error) {
+          console.error(`Error loading image ${path}:`, error);
+        }
+      }
+    };
+    loadImage();
+    return () => { isMounted = false; };
+  }, [path]);
+
+  return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
+};
+
 const TiendaNubeProductManager = () => {
   // Estados principales
   const [csvData, setCsvData] = useState([]);
   const [csvPath, setCsvPath] = useState('');
   const [workingDirectory, setWorkingDirectory] = useState('');
+  const [imagesInDirectory, setImagesInDirectory] = useState([]);
   const [imageQueue, setImageQueue] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentImage, setCurrentImage] = useState(null);
@@ -54,8 +79,13 @@ const TiendaNubeProductManager = () => {
   const [variantCombinations, setVariantCombinations] = useState([]);
   
   // Estados UI
-  const [activeTab, setActiveTab] = useState('general'); // 'general', 'variantes'
+  const [activeTab, setActiveTab] = useState('general'); // 'general', 'variantes', 'combinar'
   const [allProductsProcessed, setAllProductsProcessed] = useState(false);
+
+  // Estados para Combinar Productos
+  const [selectedImagesForCombination, setSelectedImagesForCombination] = useState([]);
+  const [primaryImageForCombination, setPrimaryImageForCombination] = useState(null);
+  const [hoveredImage, setHoveredImage] = useState(null);
   
   // Referencias
   const canvasRef = useRef(null);
@@ -190,6 +220,11 @@ const TiendaNubeProductManager = () => {
         if (workingDirectory) {
           loadImagesFromData(data);
         }
+        // Cargar todas las imágenes del directorio para la pestaña "Combinar"
+        const allImages = await window.electronAPI.listFiles(workingDirectory, ['.jpg', '.jpeg', '.png', '.webp']);
+        const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
+        const saltadasImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/saltadas`, ['.jpg', '.jpeg', '.png', '.webp']));
+        setImagesInDirectory(allImages.filter(img => !processedImages.has(img) && !saltadasImages.has(img)));
       } catch (error) {
         console.error('Error loading CSV:', error);
         alert(`Error al cargar el archivo CSV: ${error.message}`);
@@ -236,6 +271,12 @@ const TiendaNubeProductManager = () => {
       'Marca', '"Producto Físico"', '"MPN (Número de pieza del fabricante)"',
       'Sexo', '"Rango de edad"', 'Costo'
     ];
+
+    const combinationOutputPath = `${directory}/imagenes_producto.csv`;
+    const combinationHeaders = ['imagen_principal', 'imagen_secundaria'];
+    if (window.electronAPI) {
+      await window.electronAPI.createCsv(combinationOutputPath, combinationHeaders);
+    }
 
     if (window.electronAPI) {
       await window.electronAPI.createCsv(outputPath, headers);
@@ -659,6 +700,48 @@ const TiendaNubeProductManager = () => {
     setVariantCombinations(variantData);
   };
 
+  // Funciones para Combinar Productos
+  const toggleImageForCombination = (imageName) => {
+    setSelectedImagesForCombination(prev => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(imageName)) {
+        newSelection.delete(imageName);
+      } else {
+        newSelection.add(imageName);
+      }
+      const newArray = Array.from(newSelection);
+      // Si la imagen principal fue deseleccionada, la reseteamos
+      if (primaryImageForCombination === imageName && !newSelection.has(imageName)) {
+        setPrimaryImageForCombination(newArray.length > 0 ? newArray[0] : null);
+      } else if (!primaryImageForCombination && newArray.length > 0) {
+        setPrimaryImageForCombination(newArray[0]);
+      }
+      return newArray;
+    });
+  };
+
+  const setAsPrimary = (imageName) => {
+    if (selectedImagesForCombination.includes(imageName)) {
+      setPrimaryImageForCombination(imageName);
+    }
+  };
+
+  const saveCombination = async () => {
+    if (!primaryImageForCombination || selectedImagesForCombination.length < 2) {
+      alert("Debes seleccionar al menos una imagen principal y una secundaria.");
+      return;
+    }
+
+    const combinationOutputPath = `${workingDirectory}/imagenes_producto.csv`;
+    const secondaryImages = selectedImagesForCombination.filter(img => img !== primaryImageForCombination);
+    const rows = secondaryImages.map(secImg => [primaryImageForCombination, secImg].join(';')).join('\n') + '\n';
+
+    await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
+    alert(`Combinación guardada para ${primaryImageForCombination}`);
+    setSelectedImagesForCombination([]);
+    setPrimaryImageForCombination(null);
+  };
+
   const updateVariantPrice = (variantId, price) => {
     setVariantCombinations(prev => 
       prev.map(v => v.id === variantId ? { ...v, price } : v)
@@ -781,6 +864,9 @@ const TiendaNubeProductManager = () => {
     setVariantCombinations([]);
     setActiveTab('general');
     setAllProductsProcessed(false);
+    setImagesInDirectory([]);
+    setSelectedImagesForCombination([]);
+    setPrimaryImageForCombination(null);
   };
 
   return (
@@ -914,6 +1000,7 @@ const TiendaNubeProductManager = () => {
           <div className="flex border-b border-gray-700">
             <button onClick={() => setActiveTab('general')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>General</button>
             <button onClick={() => setActiveTab('variantes')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'variantes' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>Variantes</button>
+            <button onClick={() => setActiveTab('combinar')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'combinar' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>Combinar</button>
           </div>
 
           <div className="p-6 overflow-y-auto">
@@ -1174,6 +1261,62 @@ const TiendaNubeProductManager = () => {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Contenido de la Pestaña Combinar */}
+            {activeTab === 'combinar' && (
+              <div>
+                <h2 className="text-xl font-bold mb-4">Combinar Productos</h2>
+                {selectedImagesForCombination.length > 0 && (
+                  <div className="mb-4">
+                    <button
+                      onClick={saveCombination}
+                      className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
+                    >
+                      Guardar Combinación
+                    </button>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Principal: {primaryImageForCombination || 'Ninguna'}
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                  {imagesInDirectory.map(imageName => (
+                    <div 
+                      key={imageName} 
+                      className={`relative border-2 rounded-lg overflow-hidden cursor-pointer ${selectedImagesForCombination.includes(imageName) ? (imageName === primaryImageForCombination ? 'border-green-500' : 'border-blue-500') : 'border-gray-700'}`}
+                      onClick={() => toggleImageForCombination(imageName)}
+                      onMouseEnter={() => setHoveredImage(`${workingDirectory}/${imageName}`)}
+                      onMouseLeave={() => setHoveredImage(null)}
+                    >
+                      <LocalImage 
+                        path={`${workingDirectory}/${imageName}`}
+                        alt={imageName}
+                        className="w-full h-32 object-cover"
+                      />
+                      {selectedImagesForCombination.includes(imageName) && (
+                        <div className="absolute top-1 right-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAsPrimary(imageName);
+                            }}
+                            className={`w-6 h-6 rounded-full text-xs ${imageName === primaryImageForCombination ? 'bg-green-500' : 'bg-gray-600 hover:bg-gray-500'}`}
+                            title="Marcar como principal"
+                          >
+                            P
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {hoveredImage && (
+                  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-2 bg-black border border-gray-500 rounded-lg shadow-lg z-50 pointer-events-none">
+                    <LocalImage path={hoveredImage} alt="preview" className="max-w-[400px] max-h-[400px]"/>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -343,6 +343,16 @@ ipcMain.handle('list-files', async (event, dirPath, extensions) => {
   }
 });
 
+ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
+  try {
+    await fs.appendFile(filePath, data, encoding || 'utf-8');
+    return { success: true };
+  } catch (error) {
+    console.error('Error appending to file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Función para procesar inpainting (simulado)
 ipcMain.handle('process-inpainting', async (event, imagePath, maskData) => {
   try {
