@@ -643,13 +643,24 @@ const TiendaNubeProductManager = () => {
 
   // Funciones de dibujo y borrado
   const startDrawing = (e) => {
-    if (!currentImage) return;
+    if (!currentImage || isProcessingInpainting) return;
+
+    if (!maskCanvas) {
+      const mask = document.createElement('canvas');
+      mask.width = currentImage.width;
+      mask.height = currentImage.height;
+      const maskCtx = mask.getContext('2d');
+      maskCtx.fillStyle = 'black';
+      maskCtx.fillRect(0, 0, mask.width, mask.height);
+      setMaskCanvas(mask);
+    }
+
     setIsDrawing(true);
     drawBrush(e);
   };
   
   const drawBrush = (e) => {
-    if (!isDrawing || !currentImage) return;
+    if (!isDrawing || !currentImage || !maskCanvas) return;
   
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -661,16 +672,6 @@ const TiendaNubeProductManager = () => {
       x > displayOffset.x + displaySize.width ||
       y > displayOffset.y + displaySize.height) {
       return;
-    }
-
-    if (!maskCanvas) {
-      const mask = document.createElement('canvas');
-      mask.width = currentImage.width;
-      mask.height = currentImage.height;
-      const maskCtx = mask.getContext('2d');
-      maskCtx.fillStyle = 'black';
-      maskCtx.fillRect(0, 0, mask.width, mask.height);
-      setMaskCanvas(mask);
     }
 
     const maskCtx = maskCanvas.getContext('2d');
