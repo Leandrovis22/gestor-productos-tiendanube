@@ -85,7 +85,6 @@ const TiendaNubeProductManager = () => {
   // Estados para Combinar Productos
   const [selectedImagesForCombination, setSelectedImagesForCombination] = useState([]);
   const [primaryImageForCombination, setPrimaryImageForCombination] = useState(null);
-  const [hoveredImage, setHoveredImage] = useState(null);
   const [isCombinationModalOpen, setIsCombinationModalOpen] = useState(false);
 
   // Referencias
@@ -748,15 +747,21 @@ const TiendaNubeProductManager = () => {
       await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
     }
 
-    // Aquí la lógica para guardar el producto principal
-    // Forzamos la carga de los datos del producto principal seleccionado
-    const productData = csvData.find(row => row.archivo === primaryImageForCombination);
-    if (productData) {
-      loadProductData(primaryImageForCombination);
-      // Aquí podrías abrir la pestaña 'general' o 'variantes' para editar y guardar
-      alert(`Combinación guardada. Producto principal: ${primaryImageForCombination}. Ahora puedes editar sus detalles y guardarlo.`);
-      setIsCombinationModalOpen(false); // Cierra el modal
+    // Ocultar imágenes secundarias de la vista de "Combinar"
+    setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
+
+    // Limpiar selección
+    setSelectedImagesForCombination([]);
+    setPrimaryImageForCombination(null);
+
+    // Cargar el producto principal en la vista de edición
+    const newIndex = imageQueue.findIndex(img => img === primaryImageForCombination);
+    if (newIndex !== -1) {
+      setCurrentImageIndex(newIndex);
+      loadCurrentImage(primaryImageForCombination);
     }
+
+    setIsCombinationModalOpen(false); // Cierra el modal
   };
 
   const updateVariantPrice = (variantId, price) => {
@@ -958,7 +963,7 @@ const TiendaNubeProductManager = () => {
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {/* Panel izquierdo - Imagen */}
-          <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col">
+          <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col" ref={imageRef}>
             <div className="flex-1 p-4">
               <canvas
                 ref={canvasRef}
@@ -1311,9 +1316,19 @@ const TiendaNubeProductManager = () => {
                       <div
                         key={imageName}
                         className={`relative border-2 rounded-lg overflow-hidden cursor-pointer ${selectedImagesForCombination.includes(imageName) ? (imageName === primaryImageForCombination ? 'border-green-500' : 'border-blue-500') : 'border-gray-700'}`}
-                        onClick={() => toggleImageForCombination(imageName)}
-                        onMouseEnter={() => setHoveredImage(`${workingDirectory}/${imageName}`)}
-                        onMouseLeave={() => setHoveredImage(null)}
+                        onClick={() => {
+                          if (activeTab === 'combinar') {
+                            toggleImageForCombination(imageName);
+                          }
+                        }}
+                        onMouseEnter={async () => {
+                          if (activeTab === 'combinar' && window.electronAPI) {
+                            const imageData = await window.electronAPI.loadImage(`${workingDirectory}/${imageName}`);
+                            const img = new Image();
+                            img.onload = () => displayImage(img);
+                            img.src = imageData;
+                          }
+                        }}
                       >
                         <LocalImage
                           path={`${workingDirectory}/${imageName}`}
@@ -1337,11 +1352,6 @@ const TiendaNubeProductManager = () => {
                       </div>
                     ))}
                   </div>
-                  {hoveredImage && (
-                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-2 bg-black border border-gray-500 rounded-lg shadow-lg z-50 pointer-events-none">
-                      <LocalImage path={hoveredImage} alt="preview" className="max-w-[400px] max-h-[400px]" />
-                    </div>
-                  )}
 
                   {/* Modal de Combinación */}
                   {isCombinationModalOpen && (
