@@ -1,14 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import CombineProducts from './CombineProducts';
-import {
-  ChevronRight,
-  FolderOpen,
-  FileText,
-  SkipForward,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw
-} from 'lucide-react';
+import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw} from 'lucide-react';
 
 const ProductThumbnailImage = ({ path, alt, className }) => {
   const [src, setSrc] = useState('');

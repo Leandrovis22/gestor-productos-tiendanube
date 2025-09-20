@@ -1,9 +1,10 @@
+.gitignore
 dirgenerate.js
 fileList.txt
 main.js
 package-lock.json
 package.json
-renderer\.gitignore
+preload.js
 renderer\eslint.config.js
 renderer\index.html
 renderer\package-lock.json
@@ -12,6 +13,7 @@ renderer\postcss.config.js
 renderer\public\vite.svg
 renderer\README.md
 renderer\src\App.jsx
+renderer\src\CombineProducts.jsx
 renderer\src\index.css
 renderer\src\main.jsx
 renderer\tailwind.config.js
