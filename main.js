@@ -39,7 +39,6 @@ function createWindow() {
   });
 }
 
-// API Handlers
 ipcMain.handle('select-file', async (event, filters) => {
   try {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -84,7 +83,7 @@ ipcMain.handle('read-csv', async (event, filePath) => {
       Papa.parse(csvContent, {
         header: true,
         delimiter: ';',
-        bom: true, // <-- Añade esta línea
+        bom: true,
         skipEmptyLines: true,
         complete: (results) => {
           resolve(results.data);
@@ -102,13 +101,11 @@ ipcMain.handle('read-csv', async (event, filePath) => {
 
 ipcMain.handle('load-image', async (event, imagePath) => {
   try {
-    // Verificar si el archivo existe
     const exists = await fs.access(imagePath).then(() => true).catch(() => false);
     if (!exists) {
       throw new Error(`Image file not found: ${imagePath}`);
     }
 
-    // Leer la imagen y convertirla a base64
     const imageBuffer = await fs.readFile(imagePath);
     const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
     
@@ -119,30 +116,15 @@ ipcMain.handle('load-image', async (event, imagePath) => {
   }
 });
 
-ipcMain.handle('save-image', async (event, imagePath, imageData) => {
-  try {
-    // Convertir base64 a buffer
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    await fs.writeFile(imagePath, buffer);
-    return { success: true };
-  } catch (error) {
-    console.error('Error saving image:', error);
-    return { success: false, error: error.message };
-  }
-});
-
 ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   try {
-    // Verificar si el archivo ya existe para no sobrescribirlo
     const exists = await fs.access(csvPath).then(() => true).catch(() => false);
     if (exists) {
       console.log('El archivo salida.csv ya existe. No se sobrescribirá.');
       return { success: true, message: 'File already exists' };
     }
 
-    const csvContent = headers.join(';') + '\n';
+    const csvContent = headers.join(';') + '\n'; // Usar 'latin1' para codificación ANSI
     await fs.writeFile(csvPath, csvContent, 'latin1'); // Usar 'latin1' para codificación ANSI
     return { success: true };
   } catch (error) {
@@ -153,7 +135,6 @@ ipcMain.handle('create-csv', async (event, csvPath, headers) => {
 
 ipcMain.handle('save-product', async (event, csvPath, productData, variants) => {
   try {
-    // Generar URL ID con timestamp
     const generateUrlId = (name) => {
       const timestamp = new Date().toISOString()
         .slice(0, 19)
@@ -173,15 +154,11 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
 
     const urlId = generateUrlId(productData.name);
     
-    // Formatear precio
     const formatPrice = (priceStr) => {
       if (!priceStr) return '';
       try {
-        // 1. Como la entrada siempre es un entero, eliminamos todos los separadores de miles (puntos o comas).
-        //    Ej: "1.000" -> "1000", "1,000" -> "1000"
         const cleanPrice = priceStr.replace(/[.,]/g, '');
         const price = parseFloat(cleanPrice);
-        // 2. Formatear a 'en-US' que usa "," para miles y "." para decimales.
         return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       } catch {
         return '';
@@ -191,7 +168,6 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
     const rows = [];
 
     if (variants && variants.length > 0) {
-      // Primera variante con todos los datos del producto
       const firstVariant = variants[0];
       const activeProperties = firstVariant.properties.filter(p => p.value && p.value.trim());
       
@@ -201,7 +177,6 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
         productData.categories
       ];
 
-      // Agregar hasta 3 propiedades
       for (let i = 0; i < 3; i++) {
         if (i < activeProperties.length) {
           mainRow.push(activeProperties[i].name, activeProperties[i].value);
@@ -219,14 +194,12 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
 
       rows.push(mainRow);
 
-      // Variantes adicionales
       for (let i = 1; i < variants.length; i++) {
         const variant = variants[i];
         const activePropsVariant = variant.properties.filter(p => p.value && p.value.trim());
         
         const variantRow = [urlId, '', '']; // Mismo URL ID, nombre y categorías vacías
 
-        // Agregar propiedades de la variante
         for (let j = 0; j < 3; j++) {
           if (j < activePropsVariant.length) {
             variantRow.push(activePropsVariant[j].name, activePropsVariant[j].value);
@@ -245,12 +218,11 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
         rows.push(variantRow);
       }
     } else {
-      // Sin variantes: solo fila principal
       const mainRow = [
         urlId,
         productData.name,
         productData.categories,
-        '', '', '', '', '', '', // Sin propiedades de variantes
+        '', '', '', '', '', '',
         formatPrice(productData.price),
         '', '0.02', '2.00', '2.00', '2.00',
         productData.stock || '10',
@@ -260,7 +232,6 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
       rows.push(mainRow);
     }
 
-    // Escribir al CSV
     const csvRows = rows.map(row => row.join(';')).join('\n') + '\n';
     await fs.appendFile(csvPath, csvRows, 'latin1'); // Usar 'latin1' para codificación ANSI
 
@@ -333,14 +304,12 @@ ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr
   try {
     const imageUrlCsvPath = path.join(path.dirname(csvPath), 'imagen-url.csv');
     
-    // Verificar si el archivo existe, si no, crear con headers
     const exists = await fs.access(imageUrlCsvPath).then(() => true).catch(() => false);
     if (!exists) {
       const headers = 'url;imagenes\n';
       await fs.writeFile(imageUrlCsvPath, headers, 'utf-8');
     }
     
-    // Agregar la fila
     const row = `${urlId};${imagesStr}\n`;
     await fs.appendFile(imageUrlCsvPath, row, 'utf-8');
     

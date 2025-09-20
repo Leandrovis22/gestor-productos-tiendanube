@@ -10,7 +10,6 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-// Componente interno para manejar la carga de imágenes locales en las miniaturas
 const ProductThumbnailImage = ({ path, alt, className }) => {
   const [src, setSrc] = useState('');
 
@@ -35,7 +34,6 @@ const ProductThumbnailImage = ({ path, alt, className }) => {
   return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
 };
 const TiendaNubeProductManager = () => {
-  // Estados principales
   const [csvData, setCsvData] = useState([]);
   const [csvPath, setCsvPath] = useState('');
   const [workingDirectory, setWorkingDirectory] = useState('');
@@ -45,18 +43,15 @@ const TiendaNubeProductManager = () => {
   const [outputCsvPath, setOutputCsvPath] = useState('');
   const [productImagesMap, setProductImagesMap] = useState({});
 
-  // NUEVOS ESTADOS PARA CONTROL DE PRODUCTO
-  const [currentMainProductImage, setCurrentMainProductImage] = useState(''); // Imagen principal del producto actual
-  const [currentProductAllImages, setCurrentProductAllImages] = useState([]); // Todas las imágenes del producto actual
-  const [currentDisplayedImage, setCurrentDisplayedImage] = useState(''); // Imagen que se está mostrando actualmente
-  const [currentImagePath, setCurrentImagePath] = useState(''); // Ruta completa de la imagen actual
+  const [currentMainProductImage, setCurrentMainProductImage] = useState('');
+  const [currentProductAllImages, setCurrentProductAllImages] = useState([]);
+  const [currentDisplayedImage, setCurrentDisplayedImage] = useState('');
+  const [currentImagePath, setCurrentImagePath] = useState('');
 
-  // Estados de la imagen
   const [zoomFactor, setZoomFactor] = useState(1.0);
   const [displayOffset, setDisplayOffset] = useState({ x: 0, y: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
 
-  // Estados del formulario
   const [productName, setProductName] = useState('');
   const [productPrice, setProductPrice] = useState('');
   const [productStock, setProductStock] = useState('10');
@@ -64,7 +59,6 @@ const TiendaNubeProductManager = () => {
   const [originalCategories, setOriginalCategories] = useState('');
   const [savedImages, setSavedImages] = useState(new Set());
 
-  // Estados de variantes
   const [useColor, setUseColor] = useState(false);
   const [useSize, setUseSize] = useState(false);
   const [useType, setUseType] = useState(false);
@@ -74,15 +68,12 @@ const TiendaNubeProductManager = () => {
   const [typeValues, setTypeValues] = useState('Modelo A\nModelo B\nModelo C');
   const [variantCombinations, setVariantCombinations] = useState([]);
 
-  // Estados UI
   const [activeTab, setActiveTab] = useState('general');
   const [allProductsProcessed, setAllProductsProcessed] = useState(false);
 
-  // Referencias
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
 
-  // Definiciones de datos
   const predefinedColors = [
     "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste",
     "Fucsia", "Gris", "Marrón", "Naranja", "Negro", "Plata",
@@ -123,18 +114,15 @@ const TiendaNubeProductManager = () => {
     "Pulseras"
   ];
 
-  // FUNCIÓN PARA ACTUALIZAR MINIATURAS (similar al Python)
   const updateThumbnails = (mainImageFilename) => {
     if (!mainImageFilename) return;
 
     const allImagesForProduct = [mainImageFilename];
 
-    // Agregar imágenes secundarias si existen
     if (productImagesMap[mainImageFilename]) {
       allImagesForProduct.push(...productImagesMap[mainImageFilename]);
     }
 
-    // O si esta imagen es secundaria, buscar la principal
     let actualMainImage = mainImageFilename;
     for (const [main, secondaries] of Object.entries(productImagesMap)) {
       if (secondaries.includes(mainImageFilename)) {
@@ -146,15 +134,13 @@ const TiendaNubeProductManager = () => {
     }
 
     setCurrentMainProductImage(actualMainImage);
-    setCurrentProductAllImages([...new Set(allImagesForProduct)]); // Eliminar duplicados
+    setCurrentProductAllImages([...new Set(allImagesForProduct)]);
   };
 
-  // FUNCIÓN PARA CAMBIAR DE IMAGEN DENTRO DEL MISMO PRODUCTO
   const switchToProductImage = async (targetImageName) => {
     if (!workingDirectory || !targetImageName) return;
   
     try {
-      // Cargar la nueva imagen sin recargar datos del producto
       const imagePath = `${workingDirectory}/${targetImageName}`;
       await loadImageOnly(imagePath, targetImageName);
   
@@ -163,7 +149,6 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // FUNCIÓN PARA CARGAR SOLO LA IMAGEN (sin datos del producto)
   const loadImageOnly = async (imagePath, filename) => {
     if (!window.electronAPI) return;
 
@@ -193,7 +178,6 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // Funciones de archivo
   const selectCsvFile = async () => {
     try {
       if (window.electronAPI) {
@@ -296,7 +280,6 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // FUNCIÓN CORREGIDA PARA CARGAR IMÁGENES (similar al Python)
   const loadImagesFromData = async (data) => {
     if (data && data.length > 0 && workingDirectory && window.electronAPI) {
       const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
@@ -307,12 +290,10 @@ const TiendaNubeProductManager = () => {
 
       for (const row of data) {
         if (row.archivo) {
-          // Encontrar la imagen principal para este archivo
           const mainImage = Object.keys(productImagesMap).find(key =>
             productImagesMap[key].includes(row.archivo)
           ) || row.archivo;
 
-          // Solo agregar cada imagen principal una vez
           if (!seenMainImages.has(mainImage)) {
             const imagePath = `${workingDirectory}/${mainImage}`;
             const exists = await window.electronAPI.fileExists(imagePath);
@@ -327,7 +308,6 @@ const TiendaNubeProductManager = () => {
       setImageQueue(imageFiles);
       setCurrentImageIndex(0);
       if (imageFiles.length > 0) {
-        // Cargar el primer producto con todos sus datos
         await loadCurrentProduct(imageFiles[0], data, true);
       }
     }
@@ -361,7 +341,6 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // FUNCIÓN PRINCIPAL PARA CARGAR UN PRODUCTO (similar al display_current_image de Python)
   const loadCurrentProduct = async (filename, data = csvData, isNewProduct = false) => {
     if (!filename || !workingDirectory) {
       console.error('Missing filename or working directory');
@@ -369,14 +348,11 @@ const TiendaNubeProductManager = () => {
     }
 
     try {
-      // 1. Actualizar miniaturas y obtener imagen principal
       updateThumbnails(filename);
 
-      // 2. Cargar la imagen principal
       const imagePath = `${workingDirectory}/${filename}`;
       await loadImageOnly(imagePath, filename);
 
-      // 3. Solo cargar datos del producto si es un producto nuevo
       if (isNewProduct) {
         loadProductData(filename, data);
       }
@@ -420,7 +396,6 @@ const TiendaNubeProductManager = () => {
     console.log('Image displayed successfully');
   };
 
-  // FUNCIÓN PARA CARGAR DATOS DEL PRODUCTO (solo cuando cambia el producto principal)
   const loadProductData = (filename, data = csvData) => {
     const row = data.find(r => r.archivo === filename);
 
@@ -441,14 +416,12 @@ const TiendaNubeProductManager = () => {
       setOriginalCategories('');
     }
 
-    // Limpiar variantes
     setSelectedColors([]);
     setSelectedSizes([]);
     setTypeValues('Modelo A\nModelo B\nModelo C');
     setVariantCombinations([]);
   };
 
-  // COMPONENTE DE MINIATURAS CORREGIDO
   const ProductThumbnails = () => {
     if (activeTab !== 'general' || currentProductAllImages.length <= 1) {
       return null;
@@ -503,16 +476,12 @@ const TiendaNubeProductManager = () => {
     );
   };
 
-  // FUNCIÓN NEXT PRODUCT CORREGIDA
   const nextProduct = async () => {
     if (!imageQueue.length) return;
 
-    // 2. Guardar el producto actual
     await saveCurrentProduct();
 
-    // ... resto del código igual
 
-    // 3. Mover todas las imágenes del producto actual a procesadas
     if (window.electronAPI && workingDirectory) {
       for (const filename of currentProductAllImages) {
         const sourcePath = `${workingDirectory}/${filename}`;
@@ -534,7 +503,6 @@ const TiendaNubeProductManager = () => {
       }
     }
 
-    // 4. Filtrar la cola de imágenes
     const newQueue = imageQueue.filter(img => !currentProductAllImages.includes(img));
     setImageQueue(newQueue);
 
@@ -543,13 +511,11 @@ const TiendaNubeProductManager = () => {
       return
     }
 
-    // 5. Cargar el siguiente producto
     const nextIndex = Math.min(currentImageIndex, newQueue.length - 1);
     setCurrentImageIndex(nextIndex)
-    await loadCurrentProduct(newQueue[nextIndex], csvData, true); // isNewProduct = true
+    await loadCurrentProduct(newQueue[nextIndex], csvData, true);
   };
 
-  // FUNCIÓN SKIP PRODUCT CORREGIDA
   const skipProduct = async () => {
     if (currentImageIndex >= imageQueue.length || !workingDirectory) return;
 
@@ -560,7 +526,6 @@ const TiendaNubeProductManager = () => {
     }
 
     try {
-      // Mover todas las imágenes del producto actual a saltadas
       for (const filename of currentProductAllImages) {
         const sourcePath = `${workingDirectory}/${filename}`;
         const destPath = `${workingDirectory}/saltadas/${filename}`;
@@ -574,11 +539,9 @@ const TiendaNubeProductManager = () => {
         }
       }
 
-      // Actualizar CSV data
       const updatedCsvData = csvData.filter(row => !currentProductAllImages.includes(row.archivo));
       setCsvData(updatedCsvData);
 
-      // Actualizar cola
       const newQueue = imageQueue.filter(img => !currentProductAllImages.includes(img));
       setImageQueue(newQueue);
 
@@ -595,14 +558,12 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // Funciones de edición de imagen
   const handleZoom = (delta) => {
     const factor = delta > 0 ? 1.1 : 0.9;
     const newZoom = Math.max(0.1, Math.min(5.0, zoomFactor * factor));
     setZoomFactor(newZoom);
   };
 
-  // Funciones de categorías
   const toggleCategory = (category) => {
     setSelectedCategories(prev =>
       prev.includes(category)
@@ -611,7 +572,6 @@ const TiendaNubeProductManager = () => {
     );
   };
 
-  // Funciones de variantes
   const toggleColor = (color) => {
     setSelectedColors(prev =>
       prev.includes(color)
@@ -655,7 +615,6 @@ const TiendaNubeProductManager = () => {
       return;
     }
 
-    // Generar todas las combinaciones
     const combinations = [];
     const generateCombos = (current, remaining) => {
       if (remaining.length === 0) {
@@ -696,11 +655,9 @@ const TiendaNubeProductManager = () => {
     );
   };
 
-  // FUNCIÓN DE GUARDADO CORREGIDA
   const saveCurrentProduct = async () => {
     if (!outputCsvPath || !imageQueue.length || !currentMainProductImage) return;
 
-    // Verificar si ya fue guardado
     if (savedImages.has(currentMainProductImage)) {
       console.log(`Producto ${currentMainProductImage} ya fue guardado.`);
       return;
@@ -733,19 +690,17 @@ const TiendaNubeProductManager = () => {
       name,
       categories: categoriesStr,
       price: price,
-      stock: stock,
-      images: currentProductAllImages // Pasar todas las imágenes del producto
+      stock: stock, // Pasar todas las imágenes del producto
+      images: currentProductAllImages
     };
 
     if (window.electronAPI) {
       await window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
 
-      // Escribir en imagen-url.csv
 const imagesStr = currentProductAllImages.join(',');
 await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     }
 
-    // Marcar todas las imágenes del producto como guardadas
     setSavedImages(prev => {
       const newSet = new Set(prev);
       currentProductAllImages.forEach(img => newSet.add(img));
@@ -770,7 +725,6 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     handleCombinationSave();
   }, [workingDirectory]);
 
-  // Efecto para manejar el redimensionado del canvas
   useEffect(() => {
     const handleResize = () => {
       if (currentImage) {
@@ -782,7 +736,6 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     return () => window.removeEventListener('resize', handleResize);
   }, [currentImage]);
 
-  // Efecto para manejar el zoom con la rueda del mouse de forma no pasiva
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -792,13 +745,11 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
       handleZoom(e.deltaY > 0 ? -1 : 1);
     };
 
-    // Agregar el event listener con la opción passive: false
     canvas.addEventListener('wheel', handleWheel, { passive: false });
 
-    // Limpiar el event listener al desmontar el componente
     return () => {
       canvas.removeEventListener('wheel', handleWheel);
-    };
+    }; // Depender de handleZoom (o sus dependencias si se usa useCallback)
   }, [handleZoom]); // Depender de handleZoom (o sus dependencias si se usa useCallback)
 
   useEffect(() => {
@@ -835,7 +786,6 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     setActiveTab('general');
     setAllProductsProcessed(false);
     setProductImagesMap({});
-    // Limpiar nuevos estados
     setCurrentMainProductImage('');
     setCurrentProductAllImages([]);
     setCurrentDisplayedImage('');
@@ -858,7 +808,6 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-      {/* Header (no cambia de tamaño) */}
       <div className="bg-gray-800 p-4 border-b border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -928,7 +877,6 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
-          {/* Panel izquierdo - Imagen */}
           <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col" ref={imageRef}>
             <div className="flex-1 p-4">
               <canvas

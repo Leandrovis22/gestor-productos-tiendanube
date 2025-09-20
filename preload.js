@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readCsv: (filePath) => ipcRenderer.invoke('read-csv', filePath),
   loadImage: (imagePath) => ipcRenderer.invoke('load-image', imagePath),
   getImageInfo: (imagePath) => ipcRenderer.invoke('get-image-info', imagePath),
-  saveImage: (imagePath, imageData) => ipcRenderer.invoke('save-image', imagePath, imageData),
   createCsv: (csvPath, headers) => ipcRenderer.invoke('create-csv', csvPath, headers),
   appendFile: (path, data, encoding) => ipcRenderer.invoke('append-file', path, data, encoding),
   saveProduct: (csvPath, productData, variants) => ipcRenderer.invoke('save-product', csvPath, productData, variants),

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 
-// Componente interno para manejar la carga de imágenes locales
 const InlineLocalImage = ({ path, alt, className }) => {
   const [src, setSrc] = useState('');
 
@@ -30,7 +29,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
   const [selectedImages, setSelectedImages] = useState([]);
   const [primaryImage, setPrimaryImage] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [csvData, setCsvData] = useState([]); // Necesario para mostrar descripciones en el modal
+  const [csvData, setCsvData] = useState([]);
 
   useEffect(() => {
     const loadImages = async () => {
@@ -55,8 +54,6 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
 
     loadImages();
     if (csvData.length === 0) {
-        // Cargar CSV si no está cargado para tener descripciones
-        // Esto podría mejorarse pasándolo como prop si ya está cargado en App.jsx
     }
   }, [workingDirectory]);
 
