@@ -1,56 +1,33 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import CombineProducts from './CombineProducts';
 import {
-  ChevronLeft,
   ChevronRight,
   FolderOpen,
   FileText,
-  Save,
   SkipForward,
   ZoomIn,
   ZoomOut,
-  RotateCcw,
-  Plus,
-  Minus,
-  Search,
-  X
+  RotateCcw
 } from 'lucide-react';
-import Papa from 'papaparse';
-
-const LocalImage = ({ path, alt, className }) => {
-  const [src, setSrc] = useState('');
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadImage = async () => {
-      if (window.electronAPI && path) {
-        try {
-          const imageData = await window.electronAPI.loadImage(path);
-          if (isMounted) {
-            setSrc(imageData);
-          }
-        } catch (error) {
-          console.error(`Error loading image ${path}:`, error);
-        }
-      }
-    };
-    loadImage();
-    return () => { isMounted = false; };
-  }, [path]);
-
-  return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
-};
+import { LocalImage } from './LocalImage';
 
 const TiendaNubeProductManager = () => {
   // Estados principales
   const [csvData, setCsvData] = useState([]);
   const [csvPath, setCsvPath] = useState('');
   const [workingDirectory, setWorkingDirectory] = useState('');
-  const [imagesInDirectory, setImagesInDirectory] = useState([]);
   const [imageQueue, setImageQueue] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentImage, setCurrentImage] = useState(null);
   const [originalImage, setOriginalImage] = useState(null);
   const [outputCsvPath, setOutputCsvPath] = useState('');
+  const [productImagesMap, setProductImagesMap] = useState({});
+
+  // NUEVOS ESTADOS PARA CONTROL DE PRODUCTO
+  const [currentMainProductImage, setCurrentMainProductImage] = useState(''); // Imagen principal del producto actual
+  const [currentProductAllImages, setCurrentProductAllImages] = useState([]); // Todas las imágenes del producto actual
+  const [currentDisplayedImage, setCurrentDisplayedImage] = useState(''); // Imagen que se está mostrando actualmente
+  const [currentImagePath, setCurrentImagePath] = useState(''); // Ruta completa de la imagen actual
 
   // Estados de la imagen
   const [zoomFactor, setZoomFactor] = useState(1.0);
@@ -64,7 +41,6 @@ const TiendaNubeProductManager = () => {
   const [productName, setProductName] = useState('');
   const [productPrice, setProductPrice] = useState('');
   const [productStock, setProductStock] = useState('10');
-  const [productImages, setProductImages] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [originalCategories, setOriginalCategories] = useState('');
   const [savedImages, setSavedImages] = useState(new Set());
@@ -80,13 +56,8 @@ const TiendaNubeProductManager = () => {
   const [variantCombinations, setVariantCombinations] = useState([]);
 
   // Estados UI
-  const [activeTab, setActiveTab] = useState('general'); // 'general', 'variantes', 'combinar'
+  const [activeTab, setActiveTab] = useState('general');
   const [allProductsProcessed, setAllProductsProcessed] = useState(false);
-
-  // Estados para Combinar Productos
-  const [selectedImagesForCombination, setSelectedImagesForCombination] = useState([]);
-  const [primaryImageForCombination, setPrimaryImageForCombination] = useState(null);
-  const [isCombinationModalOpen, setIsCombinationModalOpen] = useState(false);
 
   // Referencias
   const canvasRef = useRef(null);
@@ -134,6 +105,105 @@ const TiendaNubeProductManager = () => {
     "Pulseras"
   ];
 
+  // FUNCIÓN PARA ACTUALIZAR MINIATURAS (similar al Python)
+  const updateThumbnails = (mainImageFilename) => {
+    if (!mainImageFilename) return;
+
+    const allImagesForProduct = [mainImageFilename];
+
+    // Agregar imágenes secundarias si existen
+    if (productImagesMap[mainImageFilename]) {
+      allImagesForProduct.push(...productImagesMap[mainImageFilename]);
+    }
+
+    // O si esta imagen es secundaria, buscar la principal
+    let actualMainImage = mainImageFilename;
+    for (const [main, secondaries] of Object.entries(productImagesMap)) {
+      if (secondaries.includes(mainImageFilename)) {
+        actualMainImage = main;
+        allImagesForProduct.splice(0, 1, main);
+        allImagesForProduct.push(...secondaries.filter(img => img !== mainImageFilename));
+        break;
+      }
+    }
+
+    setCurrentMainProductImage(actualMainImage);
+    setCurrentProductAllImages([...new Set(allImagesForProduct)]); // Eliminar duplicados
+  };
+
+  // FUNCIÓN PARA CAMBIAR DE IMAGEN DENTRO DEL MISMO PRODUCTO
+  const switchToProductImage = async (targetImageName) => {
+    if (!workingDirectory || !targetImageName) return;
+
+    try {
+      // 1. Guardar la imagen actual si ha sido editada
+      if (currentImage && originalImage && currentImagePath) {
+        await saveCurrentImageEdits();
+      }
+
+      // 2. Cargar la nueva imagen sin recargar datos del producto
+      const imagePath = `${workingDirectory}/${targetImageName}`;
+      await loadImageOnly(imagePath, targetImageName);
+
+    } catch (error) {
+      console.error('Error switching to product image:', error);
+    }
+  };
+
+  // FUNCIÓN PARA GUARDAR EDICIONES DE LA IMAGEN ACTUAL
+  const saveCurrentImageEdits = async () => {
+    if (!currentImagePath || !currentImage || !window.electronAPI) return;
+
+    try {
+      // Si la imagen ha sido editada (tiene máscara o cambios), guardarla
+      if (maskCanvas || currentImage !== originalImage) {
+        const canvas = document.createElement('canvas');
+        canvas.width = currentImage.width;
+        canvas.height = currentImage.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(currentImage, 0, 0);
+
+        const imageData = canvas.toDataURL('image/jpeg', 0.95);
+        await window.electronAPI.saveImage(currentImagePath, imageData);
+        console.log(`Imagen guardada: ${currentDisplayedImage}`);
+      }
+    } catch (error) {
+      console.error('Error saving image edits:', error);
+    }
+  };
+
+  // FUNCIÓN PARA CARGAR SOLO LA IMAGEN (sin datos del producto)
+  const loadImageOnly = async (imagePath, filename) => {
+    if (!window.electronAPI) return;
+
+    try {
+      const exists = await window.electronAPI.fileExists(imagePath);
+      if (!exists) {
+        console.error('Image file does not exist:', imagePath);
+        return;
+      }
+
+      const imageData = await window.electronAPI.loadImage(imagePath);
+
+      const img = new Image();
+      img.onload = () => {
+        setCurrentImage(img);
+        setOriginalImage(img);
+        setCurrentDisplayedImage(filename);
+        setCurrentImagePath(imagePath);
+        setZoomFactor(1.0);
+        setMaskCanvas(null);
+        setTimeout(() => displayImage(img), 100);
+      };
+      img.onerror = (error) => {
+        console.error('Error loading image:', error);
+      };
+      img.src = imageData;
+    } catch (error) {
+      console.error('Error loading image only:', error);
+    }
+  };
+
   // Funciones de archivo
   const selectCsvFile = async () => {
     try {
@@ -146,7 +216,6 @@ const TiendaNubeProductManager = () => {
           loadCsvData(result.filePath);
         }
       } else {
-        // Fallback para desarrollo web
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.csv';
@@ -154,19 +223,6 @@ const TiendaNubeProductManager = () => {
           const file = e.target.files[0];
           if (file) {
             setCsvPath(file.name);
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const csvText = e.target.result;
-              Papa.parse(csvText, {
-                header: true,
-                delimiter: ';',
-                complete: (results) => {
-                  setCsvData(results.data);
-                  loadImagesFromData(results.data);
-                }
-              });
-            };
-            reader.readAsText(file);
           }
         };
         input.click();
@@ -176,17 +232,42 @@ const TiendaNubeProductManager = () => {
     }
   };
 
+  const loadProductImagesMap = async () => {
+    if (!workingDirectory || !window.electronAPI) return;
+
+    const mapPath = `${workingDirectory}/imagenes_producto.csv`;
+    try {
+      const exists = await window.electronAPI.fileExists(mapPath);
+      if (exists) {
+        const data = await window.electronAPI.readCsv(mapPath);
+        const mapping = {};
+
+        data.forEach(row => {
+          if (row.imagen_principal && row.imagen_secundaria) {
+            if (!mapping[row.imagen_principal]) {
+              mapping[row.imagen_principal] = [];
+            }
+            mapping[row.imagen_principal].push(row.imagen_secundaria);
+          }
+        });
+
+        setProductImagesMap(mapping);
+      }
+    } catch (error) {
+      console.error('Error cargando mapeo de imágenes:', error);
+    }
+  };
+
   const selectWorkingDirectory = async () => {
     try {
       if (window.electronAPI) {
         const result = await window.electronAPI.selectDirectory();
         if (result.directoryPath && !result.canceled) {
           setWorkingDirectory(result.directoryPath);
-          setAllProductsProcessed(false); // Reiniciar estado al seleccionar nueva carpeta
+          setAllProductsProcessed(false);
           await createOutputCsv(result.directoryPath);
         }
       } else {
-        // Para desarrollo web, usar un directorio simulado
         setWorkingDirectory('/simulado/directorio');
         createOutputCsv('/simulado/directorio');
       }
@@ -195,35 +276,27 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // Efecto para cargar imágenes cuando el directorio de trabajo cambia
   useEffect(() => {
     const setupDirectory = async () => {
       if (workingDirectory && window.electronAPI) {
-        // Crear carpetas necesarias
         await window.electronAPI.createDirectory(`${workingDirectory}/saltadas`);
         await window.electronAPI.createDirectory(`${workingDirectory}/procesadas`);
 
-        // Cargar imágenes para la pestaña "Combinar" tan pronto como tengamos el directorio
-        const allImages = await window.electronAPI.listFiles(workingDirectory, ['.jpg', '.jpeg', '.png', '.webp']);
-        const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
-        const saltadasImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/saltadas`, ['.jpg', '.jpeg', '.png', '.webp']));
-        setImagesInDirectory(allImages.filter(img => !processedImages.has(img) && !saltadasImages.has(img)));
+        await loadProductImagesMap();
 
-        // Si ya tenemos datos CSV, cargar las imágenes
         if (csvData.length > 0) {
           loadImagesFromData(csvData);
         }
       }
     };
     setupDirectory();
-  }, [workingDirectory]); // Se ejecuta solo cuando workingDirectory cambia
+  }, [workingDirectory, csvData]);
 
   const loadCsvData = async (filePath) => {
     if (window.electronAPI) {
       try {
         const data = await window.electronAPI.readCsv(filePath);
         setCsvData(data);
-        // Si ya tenemos directorio de trabajo, cargar imágenes
         if (workingDirectory) {
           loadImagesFromData(data);
         }
@@ -234,24 +307,39 @@ const TiendaNubeProductManager = () => {
     }
   };
 
+  // FUNCIÓN CORREGIDA PARA CARGAR IMÁGENES (similar al Python)
   const loadImagesFromData = async (data) => {
     if (data && data.length > 0 && workingDirectory && window.electronAPI) {
+      const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
+      const saltadasImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/saltadas`, ['.jpg', '.jpeg', '.png', '.webp']));
+
       const imageFiles = [];
+      const seenMainImages = new Set();
+
       for (const row of data) {
         if (row.archivo) {
-          const imagePath = `${workingDirectory}/${row.archivo}`;
-          const exists = await window.electronAPI.fileExists(imagePath);
-          if (exists) {
-            imageFiles.push(row.archivo);
+          // Encontrar la imagen principal para este archivo
+          const mainImage = Object.keys(productImagesMap).find(key =>
+            productImagesMap[key].includes(row.archivo)
+          ) || row.archivo;
+
+          // Solo agregar cada imagen principal una vez
+          if (!seenMainImages.has(mainImage)) {
+            const imagePath = `${workingDirectory}/${mainImage}`;
+            const exists = await window.electronAPI.fileExists(imagePath);
+            if (exists && !processedImages.has(mainImage) && !saltadasImages.has(mainImage)) {
+              imageFiles.push(mainImage);
+              seenMainImages.add(mainImage);
+            }
           }
         }
       }
 
       setImageQueue(imageFiles);
       setCurrentImageIndex(0);
-
       if (imageFiles.length > 0) {
-        loadCurrentImage(imageFiles[0], data);
+        // Cargar el primer producto con todos sus datos
+        await loadCurrentProduct(imageFiles[0], data, true);
       }
     }
   };
@@ -260,7 +348,6 @@ const TiendaNubeProductManager = () => {
     const outputPath = `${directory}/salida.csv`;
     setOutputCsvPath(outputPath);
 
-    // Headers para el CSV de salida
     const headers = [
       '"Identificador de URL"', 'Nombre', 'Categorías',
       '"Nombre de propiedad 1"', '"Valor de propiedad 1"',
@@ -285,56 +372,28 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // Funciones de imagen
-  const loadCurrentImage = async (filename, data = csvData) => {
+  // FUNCIÓN PRINCIPAL PARA CARGAR UN PRODUCTO (similar al display_current_image de Python)
+  const loadCurrentProduct = async (filename, data = csvData, isNewProduct = false) => {
     if (!filename || !workingDirectory) {
       console.error('Missing filename or working directory');
       return;
     }
 
-    if (window.electronAPI) {
-      try {
-        const imagePath = `${workingDirectory}/${filename}`;
-        console.log('Loading image from:', imagePath);
+    try {
+      // 1. Actualizar miniaturas y obtener imagen principal
+      updateThumbnails(filename);
 
-        // Verificar si el archivo existe
-        const exists = await window.electronAPI.fileExists(imagePath);
-        if (!exists) {
-          console.error('Image file does not exist:', imagePath);
-          return;
-        }
+      // 2. Cargar la imagen principal
+      const imagePath = `${workingDirectory}/${filename}`;
+      await loadImageOnly(imagePath, filename);
 
-        const imageData = await window.electronAPI.loadImage(imagePath);
-
-        const img = new Image();
-        img.onload = () => {
-          console.log('Image loaded successfully:', filename);
-          setCurrentImage(img);
-          setOriginalImage(img);
-          setZoomFactor(1.0);
-          setMaskCanvas(null);
-          loadProductData(filename, data);
-          // Usar setTimeout para asegurar que el canvas esté renderizado
-          setTimeout(() => displayImage(img), 100);
-        };
-        img.onerror = (error) => {
-          console.error('Error loading image:', error);
-        };
-        img.src = imageData;
-      } catch (error) {
-        console.error('Error loading image:', error);
-      }
-    } else {
-      // Para desarrollo, usar imagen placeholder
-      const img = new Image();
-      img.onload = () => {
-        setCurrentImage(img);
-        setOriginalImage(img);
-        setZoomFactor(1.0);
+      // 3. Solo cargar datos del producto si es un producto nuevo
+      if (isNewProduct) {
         loadProductData(filename, data);
-        setTimeout(() => displayImage(img), 100);
-      };
-      img.src = `https://picsum.photos/400/400?random=${Math.random()}`;
+      }
+
+    } catch (error) {
+      console.error('Error loading current product:', error);
     }
   };
 
@@ -350,11 +409,9 @@ const TiendaNubeProductManager = () => {
     const canvasWidth = canvasRect.width;
     const canvasHeight = canvasRect.height;
 
-    // Ajustar el tamaño del canvas a su tamaño visual
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 
-    // Calcular escala para ajustar la imagen al canvas
     const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height) * zoomFactor;
     const scaledWidth = img.width * scale;
     const scaledHeight = img.height * scale;
@@ -365,21 +422,19 @@ const TiendaNubeProductManager = () => {
     setDisplayOffset({ x: offsetX, y: offsetY });
     setDisplaySize({ width: scaledWidth, height: scaledHeight });
 
-    // Limpiar canvas y dibujar fondo
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     ctx.fillStyle = '#333';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Dibujar la imagen
     ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
 
     console.log('Image displayed successfully');
   };
 
+  // FUNCIÓN PARA CARGAR DATOS DEL PRODUCTO (solo cuando cambia el producto principal)
   const loadProductData = (filename, data = csvData) => {
     const row = data.find(r => r.archivo === filename);
 
-    // Limpiar selecciones anteriores
     setSelectedCategories([]);
 
     if (row) {
@@ -395,16 +450,6 @@ const TiendaNubeProductManager = () => {
       setProductName('');
       setProductPrice('');
       setOriginalCategories('');
-      setProductImages([]);
-    }
-
-    // Cargar todas las imágenes del producto
-    const urlId = row ? row['Identificador de URL'] : null;
-    if (urlId) {
-      const allImagesForProduct = data.filter(r => r['Identificador de URL'] === urlId && r.archivo).map(r => r.archivo);
-      setProductImages(allImagesForProduct);
-    } else {
-      setProductImages(filename ? [filename] : []);
     }
 
     // Limpiar variantes
@@ -412,128 +457,150 @@ const TiendaNubeProductManager = () => {
     setSelectedSizes([]);
     setTypeValues('Modelo A\nModelo B\nModelo C');
     setVariantCombinations([]);
-    // No es necesario limpiar savedImages aquí, debe persistir
   };
 
-  // Funciones de navegación
-  const nextImage = () => {
+  // COMPONENTE DE MINIATURAS CORREGIDO
+  const ProductThumbnails = () => {
+    if (activeTab !== 'general' || currentProductAllImages.length <= 1) {
+      return null;
+    }
+
+    return (
+      <div className="p-2 border-t border-gray-700">
+        <h4 className="text-xs text-gray-400 mb-2">
+          Imágenes del producto ({currentProductAllImages.length}):
+        </h4>
+        <div className="flex gap-2 overflow-x-auto">
+          {currentProductAllImages.map((imgName, index) => {
+            const isCurrentlyDisplayed = currentDisplayedImage === imgName;
+            const isMainProduct = imgName === currentMainProductImage;
+
+            return (
+              <div
+                key={imgName}
+                className={`relative cursor-pointer border-2 rounded transition-all flex-shrink-0 ${isCurrentlyDisplayed
+                    ? 'border-blue-500 shadow-lg bg-blue-900/20'
+                    : 'border-transparent hover:border-gray-500'
+                  }`}
+                onClick={() => switchToProductImage(imgName)}
+                title={`${imgName} ${isCurrentlyDisplayed ? '(mostrando)' : ''}`}
+              >
+                <LocalImage
+                  path={`${workingDirectory}/${imgName}`}
+                  alt={imgName}
+                  className="w-16 h-16 object-cover rounded-sm"
+                />
+                {isCurrentlyDisplayed && (
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                )}
+                {isMainProduct && (
+                  <div className="absolute -top-1 -right-1">
+                    <div className="w-4 h-4 bg-green-500 rounded-full text-xs text-white flex items-center justify-center font-bold">
+                      P
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Producto principal: {currentMainProductImage}
+          {currentProductAllImages.length > 1 && ' + ' + (currentProductAllImages.length - 1) + ' secundarias'}
+        </p>
+      </div>
+    );
+  };
+
+  // FUNCIÓN NEXT PRODUCT CORREGIDA
+  const nextProduct = async () => {
     if (!imageQueue.length) return;
-    const mainImageFilename = imageQueue[currentImageIndex];
 
-    // Guardar siempre el producto actual
-    saveCurrentProduct();
+    // 1. Guardar el producto actual
+    await saveCurrentProduct();
 
-    // Identificar todas las imágenes del producto actual (principal y secundarias)
-    const currentRow = csvData.find(r => r.archivo === mainImageFilename);
-    const urlId = currentRow ? currentRow['Identificador de URL'] : null;
-    const imagesToMove = urlId
-      ? csvData.filter(r => r['Identificador de URL'] === urlId && r.archivo).map(r => r.archivo)
-      : [mainImageFilename];
-
-    // Mover todas las imágenes del producto a la carpeta "procesadas"
+    // 2. Mover todas las imágenes del producto actual a procesadas
     if (window.electronAPI && workingDirectory) {
-      imagesToMove.forEach(filename => {
+      for (const filename of currentProductAllImages) {
         const sourcePath = `${workingDirectory}/${filename}`;
         const destPath = `${workingDirectory}/procesadas/${filename}`;
 
-        window.electronAPI.fileExists(sourcePath).then(exists => {
-          if (exists) {
-            window.electronAPI.moveFile(sourcePath, destPath)
-              .then(result => {
-                if (result.success) {
-                  console.log(`Imagen ${filename} movida a procesadas.`);
-                  // Eliminar de la lista de imágenes para combinar
-                  setImagesInDirectory(prev => prev.filter(img => img !== filename));
-                } else {
-                  console.error(`Error moviendo archivo ${filename}:`, result.error);
-                }
-              });
-          }
-        }
-      );
-      });
-    }
-    // Si solo hay un producto, ya se guardó, no hacemos nada más
-    if (imageQueue.length === 1) {
-      setAllProductsProcessed(true);
-      return;
-    }
-
-    // Si estamos en el último producto
-    if (currentImageIndex >= imageQueue.length - 1) {
-      setAllProductsProcessed(true);
-      return;
-    }
-
-    // Avanzar al siguiente producto
-    const newIndex = currentImageIndex + 1;
-    setCurrentImageIndex(newIndex);
-    // Limpiar la imagen actual para evitar que se muestre la anterior mientras carga la nueva
-    setCurrentImage(null);
-    loadCurrentImage(imageQueue[newIndex]);
-  };
-
-  const skipImage = async () => {
-    if (currentImageIndex < imageQueue.length && workingDirectory) {
-      const mainImageFilename = imageQueue[currentImageIndex];
-
-      // Verificar si la imagen ya fue guardada
-      if (savedImages.has(mainImageFilename)) {
-        alert('Esta imagen ya ha sido guardada y no puede ser saltada. Si cometiste un error, deberás editar el CSV manualmente.');
-        return;
-      }
-
-      // Identificar todas las imágenes del producto actual
-      const currentRow = csvData.find(r => r.archivo === mainImageFilename);
-      const urlId = currentRow ? currentRow['Identificador de URL'] : null;
-      const imagesToSkip = urlId
-        ? csvData.filter(r => r['Identificador de URL'] === urlId && r.archivo).map(r => r.archivo)
-        : [mainImageFilename];
-
-      try {
-        // Mover todas las imágenes a la carpeta "saltadas"
-        for (const filename of imagesToSkip) {
-          const sourcePath = `${workingDirectory}/${filename}`;
-          const destPath = `${workingDirectory}/saltadas/${filename}`;
-
+        try {
           const exists = await window.electronAPI.fileExists(sourcePath);
           if (exists) {
             const result = await window.electronAPI.moveFile(sourcePath, destPath);
             if (result.success) {
-              console.log(`Image ${filename} moved to saltadas folder`);
-              // Eliminar de la lista de imágenes para combinar
-              setImagesInDirectory(prev => prev.filter(img => img !== filename));
+              console.log(`Imagen ${filename} movida a procesadas.`);
             } else {
-              console.error(`Error moving file ${filename}:`, result.error);
+              console.error(`Error moviendo archivo ${filename}:`, result.error);
             }
           }
+        } catch (error) {
+          console.error(`Error processing ${filename}:`, error);
         }
-
-        // Actualizar CSV data removiendo la imagen saltada
-        const updatedCsvData = csvData.filter(row => !imagesToSkip.includes(row.archivo));
-        setCsvData(updatedCsvData);
-
-        // Actualizar cola de imágenes
-        const newQueue = imageQueue.filter((_, index) => index !== currentImageIndex);
-        setImageQueue(newQueue);
-
-        // Ajustar índice actual
-        if (currentImageIndex >= newQueue.length && currentImageIndex > 0) {
-          setCurrentImageIndex(currentImageIndex - 1);
-        }
-
-        // Cargar siguiente imagen
-        if (newQueue.length > 0) {
-          const nextIndex = currentImageIndex >= newQueue.length ? currentImageIndex - 1 : currentImageIndex;
-          loadCurrentImage(newQueue[nextIndex], updatedCsvData);
-        } else {
-          // Si no quedan más imágenes, mostrar la pantalla final
-          setAllProductsProcessed(true);
-        }
-      } catch (error) {
-        console.error('Error skipping image:', error);
-        alert(`Error al saltar la imagen: ${error.message}`);
       }
+    }
+
+    // 3. Filtrar la cola de imágenes
+    const newQueue = imageQueue.filter(img => !currentProductAllImages.includes(img));
+    setImageQueue(newQueue);
+
+    if (newQueue.length === 0) {
+      setAllProductsProcessed(true);
+      return;
+    }
+
+    // 4. Cargar el siguiente producto
+    const nextIndex = Math.min(currentImageIndex, newQueue.length - 1);
+    setCurrentImageIndex(nextIndex);
+    await loadCurrentProduct(newQueue[nextIndex], csvData, true); // isNewProduct = true
+  };
+
+  // FUNCIÓN SKIP PRODUCT CORREGIDA
+  const skipProduct = async () => {
+    if (currentImageIndex >= imageQueue.length || !workingDirectory) return;
+
+    const alreadySaved = currentProductAllImages.some(img => savedImages.has(img));
+    if (alreadySaved) {
+      alert('Este producto ya ha sido guardado y no puede ser saltado.');
+      return;
+    }
+
+    try {
+      // Mover todas las imágenes del producto actual a saltadas
+      for (const filename of currentProductAllImages) {
+        const sourcePath = `${workingDirectory}/${filename}`;
+        const destPath = `${workingDirectory}/saltadas/${filename}`;
+
+        const exists = await window.electronAPI.fileExists(sourcePath);
+        if (exists) {
+          const result = await window.electronAPI.moveFile(sourcePath, destPath);
+          if (!result.success) {
+            console.error(`Error moving file ${filename}:`, result.error);
+          }
+        }
+      }
+
+      // Actualizar CSV data
+      const updatedCsvData = csvData.filter(row => !currentProductAllImages.includes(row.archivo));
+      setCsvData(updatedCsvData);
+
+      // Actualizar cola
+      const newQueue = imageQueue.filter(img => !currentProductAllImages.includes(img));
+      setImageQueue(newQueue);
+
+      if (newQueue.length > 0) {
+        const nextIndex = Math.min(currentImageIndex, newQueue.length - 1);
+        setCurrentImageIndex(nextIndex);
+        await loadCurrentProduct(newQueue[nextIndex], updatedCsvData, true);
+      } else {
+        setAllProductsProcessed(true);
+      }
+    } catch (error) {
+      console.error('Error skipping product:', error);
+      alert(`Error al saltar el producto: ${error.message}`);
     }
   };
 
@@ -579,7 +646,6 @@ const TiendaNubeProductManager = () => {
       return;
     }
 
-    // Crear máscara si no existe
     if (!maskCanvas) {
       const mask = document.createElement('canvas');
       mask.width = currentImage.width;
@@ -590,7 +656,6 @@ const TiendaNubeProductManager = () => {
       setMaskCanvas(mask);
     }
 
-    // Dibujar en la máscara
     const maskCtx = maskCanvas.getContext('2d');
     if (maskCtx) {
       const scaleX = currentImage.width / displaySize.width;
@@ -605,7 +670,6 @@ const TiendaNubeProductManager = () => {
       maskCtx.fill();
     }
 
-    // Mostrar la máscara en el canvas principal
     const mainCtx = canvas.getContext('2d');
     mainCtx.save();
     mainCtx.globalAlpha = 0.5;
@@ -627,17 +691,9 @@ const TiendaNubeProductManager = () => {
     if (!maskCanvas || !currentImage || !workingDirectory) return;
 
     try {
-      const filename = imageQueue[currentImageIndex];
-      const imagePath = `${workingDirectory}/${filename}`;
-
-      // Por ahora, simular el inpainting - en una implementación real
-      // aquí enviarías la máscara al proceso de inpainting
-      console.log('Performing inpainting...');
-
       if (window.electronAPI) {
-        // Convertir máscara a datos
         const maskData = maskCanvas.toDataURL();
-        const processedImage = await window.electronAPI.processInpainting(imagePath, maskData);
+        const processedImage = await window.electronAPI.processInpainting(currentImagePath, maskData);
 
         // Cargar la imagen procesada
         const img = new Image();
@@ -665,6 +721,7 @@ const TiendaNubeProductManager = () => {
   const clearAllCategories = () => {
     setSelectedCategories([]);
   };
+
   // Funciones de variantes
   const toggleColor = (color) => {
     setSelectedColors(prev =>
@@ -738,75 +795,6 @@ const TiendaNubeProductManager = () => {
     setVariantCombinations(variantData);
   };
 
-  // Funciones para Combinar Productos
-  const toggleImageForCombination = (imageName) => {
-    setSelectedImagesForCombination(prev => {
-      const newSelection = new Set(prev);
-      if (newSelection.has(imageName)) {
-        newSelection.delete(imageName);
-      } else {
-        newSelection.add(imageName);
-      }
-      const newArray = Array.from(newSelection);
-      // Si la imagen principal fue deseleccionada, la reseteamos
-      if (primaryImageForCombination === imageName && !newSelection.has(imageName)) {
-        setPrimaryImageForCombination(newArray.length > 0 ? newArray[0] : null);
-      } else if (!primaryImageForCombination && newArray.length > 0) {
-        setPrimaryImageForCombination(newArray[0]);
-      }
-      return newArray;
-    });
-  };
-
-  const selectAllImagesForCombination = () => {
-    const allImageNames = imagesInDirectory;
-    setSelectedImagesForCombination(allImageNames);
-    setPrimaryImageForCombination(allImageNames.length > 0 ? allImageNames[0] : null);
-  };
-
-  const setAsPrimary = (imageName) => {
-    if (selectedImagesForCombination.includes(imageName)) {
-      setPrimaryImageForCombination(imageName);
-    }
-  };
-
-  const saveCombination = async () => {
-    if (!primaryImageForCombination || selectedImagesForCombination.length < 1) {
-      alert("Debes seleccionar al menos una imagen principal.");
-      return;
-    }
-
-    const combinationOutputPath = `${workingDirectory}/imagenes_producto.csv`;
-    const secondaryImages = selectedImagesForCombination.filter(img => img !== primaryImageForCombination);
-
-    if (secondaryImages.length > 0) {
-      const rows = secondaryImages.map(secImg => [primaryImageForCombination, secImg].join(';')).join('\n') + '\n';
-      await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
-    }
-
-    // Ocultar imágenes secundarias de la vista de "Combinar"
-    setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
-
-    // Limpiar selección
-    setSelectedImagesForCombination([]);
-    setPrimaryImageForCombination(null);
-
-    // Cargar el producto principal en la vista de edición
-    const newIndex = imageQueue.findIndex(img => img === primaryImageForCombination);
-    if (newIndex !== -1) {
-      setCurrentImageIndex(newIndex);
-      loadCurrentImage(primaryImageForCombination);
-      // Cargar todas las imágenes del producto combinado para las miniaturas
-      const productData = csvData.find(row => row.archivo === primaryImageForCombination);
-      if (productData && productData['Identificador de URL']) {
-        const allImagesForProduct = csvData.filter(r => r['Identificador de URL'] === productData['Identificador de URL'] && r.archivo).map(r => r.archivo);
-        setProductImages(allImagesForProduct);
-      }
-    }
-
-    setIsCombinationModalOpen(false); // Cierra el modal
-  };
-
   const updateVariantPrice = (variantId, price) => {
     setVariantCombinations(prev =>
       prev.map(v => v.id === variantId ? { ...v, price } : v)
@@ -819,15 +807,13 @@ const TiendaNubeProductManager = () => {
     );
   };
 
-  // Función de guardado
-  const saveCurrentProduct = () => {
-    if (!outputCsvPath || !imageQueue.length) return;
+  // FUNCIÓN DE GUARDADO CORREGIDA
+  const saveCurrentProduct = async () => {
+    if (!outputCsvPath || !imageQueue.length || !currentMainProductImage) return;
 
-    const filename = imageQueue[currentImageIndex];
-
-    // Evitar guardar más de una vez
-    if (savedImages.has(filename)) {
-      console.log(`Producto ${filename} ya fue guardado.`);
+    // Verificar si ya fue guardado
+    if (savedImages.has(currentMainProductImage)) {
+      console.log(`Producto ${currentMainProductImage} ya fue guardado.`);
       return;
     }
 
@@ -837,7 +823,11 @@ const TiendaNubeProductManager = () => {
 
     if (!name) return;
 
-    // Generar URL ID
+    // Guardar la imagen actual antes de procesar
+    if (currentImage && originalImage && currentImagePath) {
+      await saveCurrentImageEdits();
+    }
+
     const generateUrlId = (name) => {
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
       return name.toLowerCase()
@@ -854,33 +844,47 @@ const TiendaNubeProductManager = () => {
       ? selectedCategories.join(', ')
       : originalCategories;
 
-    // Crear datos para CSV
     const baseData = {
       urlId,
       name,
       categories: categoriesStr,
       price: price,
-      stock: stock
+      stock: stock,
+      images: currentProductAllImages // Pasar todas las imágenes del producto
     };
 
-    // En una implementación completa, aquí escribiríamos al CSV
-    console.log('Saving product:', baseData);
-    console.log('Variants:', variantCombinations);
-
     if (window.electronAPI) {
-      window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
+      await window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
+
+      // Escribir en imagen-url.csv
+const imagesStr = currentProductAllImages.join(',');
+await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     }
 
-    // Marcar como guardado
-    setSavedImages(prev => new Set(prev).add(filename));
+    // Marcar todas las imágenes del producto como guardadas
+    setSavedImages(prev => {
+      const newSet = new Set(prev);
+      currentProductAllImages.forEach(img => newSet.add(img));
+      return newSet;
+    });
   };
 
-  // Efectos
   useEffect(() => {
     if (currentImage) {
       displayImage(currentImage);
     }
   }, [zoomFactor, currentImage]);
+
+  useEffect(() => {
+    const handleCombinationSave = async () => {
+      await loadProductImagesMap();
+      // Recargar la cola de imágenes
+      if (csvData.length > 0) {
+        await loadImagesFromData(csvData);
+      }
+    };
+    handleCombinationSave();
+  }, [workingDirectory]);
 
   // Efecto para manejar el redimensionado del canvas
   useEffect(() => {
@@ -894,15 +898,15 @@ const TiendaNubeProductManager = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [currentImage]);
 
-  // Efecto para cargar la primera imagen cuando se configuren CSV y directorio
   useEffect(() => {
-    if (csvData.length > 0 && workingDirectory && imageQueue.length > 0 && currentImageIndex === 0) {
-      loadCurrentImage(imageQueue[0], csvData);
+    if (csvData.length > 0 && workingDirectory && imageQueue.length > 0) {
+      if (!currentImage || currentImageIndex === 0) {
+        loadCurrentProduct(imageQueue[0], csvData, true);
+      }
     }
-  }, [csvData, workingDirectory]);
+  }, [csvData, workingDirectory, imageQueue]);
 
   const restartApp = () => {
-    // Reiniciar todos los estados a sus valores iniciales
     setCsvData([]);
     setCsvPath('');
     setWorkingDirectory('');
@@ -929,10 +933,25 @@ const TiendaNubeProductManager = () => {
     setVariantCombinations([]);
     setActiveTab('general');
     setAllProductsProcessed(false);
-    setImagesInDirectory([]);
-    setSelectedImagesForCombination([]);
-    setPrimaryImageForCombination(null);
-    setProductImages([]);
+    setProductImagesMap({});
+    // Limpiar nuevos estados
+    setCurrentMainProductImage('');
+    setCurrentProductAllImages([]);
+    setCurrentDisplayedImage('');
+    setCurrentImagePath('');
+  };
+
+  const handleCombinationSaved = () => {
+    loadProductImagesMap().then(() => {
+      loadImagesFromData(csvData);
+    });
+  }
+
+  if (activeTab === 'combinar') {
+    return <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
+      <button onClick={() => setActiveTab('general')} className="absolute top-4 right-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded z-10">Volver al Editor</button>
+      <CombineProducts workingDirectory={workingDirectory} onCombinationSaved={handleCombinationSaved} />
+    </div>
   };
 
   return (
@@ -962,24 +981,25 @@ const TiendaNubeProductManager = () => {
 
           <div className="flex items-center gap-4">
             <div className="text-right text-sm text-gray-300">
-              <div>{currentImageIndex + 1}/{imageQueue.length} imágenes</div>
-              <div>{imageQueue[currentImageIndex] || ''}</div>
+              <div>{currentImageIndex + 1}/{imageQueue.length} productos</div>
+              <div>{currentMainProductImage || ''}</div>
               <div>CSV: {outputCsvPath ? 'salida.csv' : 'No creado'}</div>
             </div>
             <button
-              onClick={skipImage}
+              onClick={skipProduct}
               className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 px-4 py-2 rounded"
+              disabled={!currentMainProductImage}
             >
               <SkipForward size={16} />
-              Saltar
+              Saltar Producto
             </button>
             <button
-              onClick={nextImage}
+              onClick={nextProduct}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded"
-              disabled={imageQueue.length === 0 || (currentImageIndex >= imageQueue.length - 1 && !currentImage)}
+              disabled={imageQueue.length === 0 || !currentMainProductImage}
             >
               <ChevronRight size={16} />
-              Siguiente
+              Siguiente Producto
             </button>
           </div>
         </div>
@@ -1023,7 +1043,6 @@ const TiendaNubeProductManager = () => {
               />
             </div>
 
-            {/* Controles de imagen */}
             <div className="p-4 border-t border-gray-700">
               <div className="flex items-center gap-2">
                 <button
@@ -1058,36 +1077,10 @@ const TiendaNubeProductManager = () => {
                 </div>
               </div>
             </div>
-            {/* Miniaturas de imágenes del producto */}
-            {activeTab === 'general' && productImages.length > 1 && (
-              <div className="p-2 border-t border-gray-700">
-                <h4 className="text-xs text-gray-400 mb-2">Otras imágenes del producto:</h4>
-                <div className="flex gap-2 overflow-x-auto">
-                  {productImages.map(imgName => (
-                    <div
-                      key={imgName}
-                      className={`cursor-pointer border-2 rounded ${imageQueue[currentImageIndex] === imgName ? 'border-blue-500' : 'border-transparent hover:border-gray-500'}`}
-                      onClick={() => {
-                        if (imageQueue[currentImageIndex] !== imgName) {
-                          loadCurrentImage(imgName);
-                        }
-                      }}
-                    >
-                      <LocalImage
-                        path={`${workingDirectory}/${imgName}`}
-                        alt={imgName}
-                        className="w-16 h-16 object-cover rounded-sm"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ProductThumbnails />
           </div>
 
-          {/* Panel derecho - Formulario */}
           <div className="flex-1 flex flex-col overflow-y-auto bg-gray-900">
-            {/* Pestañas de navegación */}
             <div className="flex border-b border-gray-700">
               <button onClick={() => setActiveTab('general')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>General</button>
               <button onClick={() => setActiveTab('variantes')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'variantes' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>Variantes</button>
@@ -1095,7 +1088,6 @@ const TiendaNubeProductManager = () => {
             </div>
 
             <div className="p-6 overflow-y-auto">
-              {/* Contenido de la Pestaña General (Producto + Categorías) */}
               {activeTab === 'general' && (
                 <div>
                   <div className="mb-1">
@@ -1128,7 +1120,6 @@ const TiendaNubeProductManager = () => {
                     </div>
                   </div>
 
-                  {/* Sección de Categorías */}
                   <div className="mt-4">
                     <div className="mb-4">
                       <h3 className="text-lg font-medium mb-2">Categorías Activas</h3>
@@ -1168,7 +1159,6 @@ const TiendaNubeProductManager = () => {
                 </div>
               )}
 
-              {/* Contenido de la Pestaña Variantes */}
               {activeTab === 'variantes' && (
                 <div>
                   <div className="border border-gray-700 rounded">
@@ -1181,7 +1171,6 @@ const TiendaNubeProductManager = () => {
 
                     <div className="p-4">
                       <div className="grid grid-cols-3 gap-4 mb-4">
-                        {/* Color */}
                         <div className="border border-gray-600 rounded p-3">
                           <label className="flex items-center gap-2 mb-3">
                             <input
@@ -1225,7 +1214,6 @@ const TiendaNubeProductManager = () => {
                           )}
                         </div>
 
-                        {/* Talle */}
                         <div className="border border-gray-600 rounded p-3">
                           <label className="flex items-center gap-2 mb-3">
                             <input
@@ -1269,7 +1257,6 @@ const TiendaNubeProductManager = () => {
                           )}
                         </div>
 
-                        {/* Tipo personalizado */}
                         <div className="border border-gray-600 rounded p-3">
                           <div className="flex items-center gap-2 mb-3">
                             <input
@@ -1306,7 +1293,6 @@ const TiendaNubeProductManager = () => {
                         Generar Combinaciones
                       </button>
 
-                      {/* Lista de combinaciones */}
                       {variantCombinations.length > 0 && (
                         <div className="border border-gray-600 rounded">
                           <div className="p-3 bg-gray-800 border-b border-gray-600">
@@ -1351,124 +1337,6 @@ const TiendaNubeProductManager = () => {
                       )}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Contenido de la Pestaña Combinar */}
-              {activeTab === 'combinar' && (
-                <div>
-                  <h2 className="text-xl font-bold mb-4">Combinar Productos</h2>
-                  <div className="mb-4 flex gap-4">
-                    <button onClick={selectAllImagesForCombination} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">
-                      Seleccionar Todo
-                    </button>
-                  </div>
-
-                  {selectedImagesForCombination.length > 0 && (
-                    <div className="mb-4">
-                      <button
-                        onClick={() => {
-                          if (csvData.length === 0) return alert("Por favor, selecciona primero el archivo resultado.csv");
-                          setIsCombinationModalOpen(true);
-                        }}
-                        className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
-                      >
-                        Combinar
-                      </button>
-                      <p className="text-sm text-gray-400 mt-2">
-                        Principal: {primaryImageForCombination || 'Ninguna'}
-                      </p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                    {imagesInDirectory.map(imageName => (
-                      <div
-                        key={imageName}
-                        className={`relative border-2 rounded-lg overflow-hidden cursor-pointer ${selectedImagesForCombination.includes(imageName) ? (imageName === primaryImageForCombination ? 'border-green-500' : 'border-blue-500') : 'border-gray-700'}`}
-                        onClick={() => {
-                          if (activeTab === 'combinar') {
-                            toggleImageForCombination(imageName);
-                          }
-                        }}
-                        onMouseEnter={async () => {
-                          if (activeTab === 'combinar' && window.electronAPI) {
-                            const imageData = await window.electronAPI.loadImage(`${workingDirectory}/${imageName}`);
-                            const img = new Image();
-                            img.onload = () => displayImage(img);
-                            img.src = imageData;
-                          }
-                        }}
-                      >
-                        <LocalImage
-                          path={`${workingDirectory}/${imageName}`}
-                          alt={imageName}
-                          className="w-full h-32 object-cover"
-                        />
-                        {selectedImagesForCombination.includes(imageName) && (
-                          <div className="absolute top-1 right-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAsPrimary(imageName);
-                              }}
-                              className={`w-6 h-6 rounded-full text-xs ${imageName === primaryImageForCombination ? 'bg-green-500' : 'bg-gray-600 hover:bg-gray-500'}`}
-                              title="Marcar como principal"
-                            >
-                              P
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Modal de Combinación */}
-                  {isCombinationModalOpen && (
-                    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-                      <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                        <h3 className="text-lg font-bold mb-4">Seleccionar Producto Principal</h3>
-                        <p className="text-sm text-gray-400 mb-4">
-                          Elige cuál de los productos seleccionados será el principal. Sus detalles (nombre, precio, etc.) se conservarán.
-                        </p>
-                        <div className="space-y-2">
-                          {selectedImagesForCombination.map((imageName) => {
-                            const product = csvData.find(row => row.archivo && row.archivo.trim() === imageName.trim());
-                            return (
-                              <div
-                                key={imageName}
-                                onClick={() => setAsPrimary(imageName)}
-                                className={`p-3 rounded-lg cursor-pointer flex items-center gap-4 ${primaryImageForCombination === imageName ? 'bg-green-800 border-2 border-green-500' : 'bg-gray-700 hover:bg-gray-600'}`}
-                              >
-                                <LocalImage path={`${workingDirectory}/${imageName}`} alt={imageName} className="w-16 h-16 object-cover rounded" />
-                                <div className="flex-1">
-                                  <p className="font-semibold">{imageName}</p>
-                                  <p className="text-sm text-gray-300">
-                                    {product ? product.descripcion : 'Imagen no encontrada en CSV - será combinada sin descripción'}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="mt-6 flex justify-end gap-4">
-                          <button
-                            onClick={() => {
-                              setIsCombinationModalOpen(false);
-                            }}
-                            className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            onClick={saveCombination}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
-                          >
-                            Confirmar y Guardar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

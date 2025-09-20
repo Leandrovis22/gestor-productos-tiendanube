@@ -372,6 +372,28 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskData) => {
   }
 });
 
+ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr) => {
+  try {
+    const imageUrlCsvPath = path.join(path.dirname(csvPath), 'imagen-url.csv');
+    
+    // Verificar si el archivo existe, si no, crear con headers
+    const exists = await fs.access(imageUrlCsvPath).then(() => true).catch(() => false);
+    if (!exists) {
+      const headers = 'url;imagenes\n';
+      await fs.writeFile(imageUrlCsvPath, headers, 'utf-8');
+    }
+    
+    // Agregar la fila
+    const row = `${urlId};${imagesStr}\n`;
+    await fs.appendFile(imageUrlCsvPath, row, 'utf-8');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving image-url mapping:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {

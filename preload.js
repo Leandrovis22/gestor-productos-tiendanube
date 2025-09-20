@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
   createDirectory: (dirPath) => ipcRenderer.invoke('create-directory', dirPath),
   listFiles: (dirPath, extensions) => ipcRenderer.invoke('list-files', dirPath, extensions),
-  processInpainting: (imagePath, maskData) => ipcRenderer.invoke('process-inpainting', imagePath, maskData)
+  processInpainting: (imagePath, maskData) => ipcRenderer.invoke('process-inpainting', imagePath, maskData),
+  saveImageUrlMapping: (csvPath, urlId, imagesStr) => ipcRenderer.invoke('save-image-url-mapping', csvPath, urlId, imagesStr)
 });
