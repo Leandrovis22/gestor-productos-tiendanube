@@ -7,7 +7,8 @@ import {
   SkipForward,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  Undo2 // <- Agregar este
 } from 'lucide-react';
 import { LocalImage } from './LocalImage';
 
@@ -36,6 +37,8 @@ const TiendaNubeProductManager = () => {
   const [maskCanvas, setMaskCanvas] = useState(null);
   const [displayOffset, setDisplayOffset] = useState({ x: 0, y: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
+  const [isProcessingInpainting, setIsProcessingInpainting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Estados del formulario
   const [productName, setProductName] = useState('');
@@ -134,17 +137,17 @@ const TiendaNubeProductManager = () => {
   // FUNCIÓN PARA CAMBIAR DE IMAGEN DENTRO DEL MISMO PRODUCTO
   const switchToProductImage = async (targetImageName) => {
     if (!workingDirectory || !targetImageName) return;
-
+  
     try {
       // 1. Guardar la imagen actual si ha sido editada
-      if (currentImage && originalImage && currentImagePath) {
+      if (hasUnsavedChanges && currentImage && currentImagePath) {
         await saveCurrentImageEdits();
       }
-
+  
       // 2. Cargar la nueva imagen sin recargar datos del producto
       const imagePath = `${workingDirectory}/${targetImageName}`;
       await loadImageOnly(imagePath, targetImageName);
-
+  
     } catch (error) {
       console.error('Error switching to product image:', error);
     }
@@ -152,20 +155,28 @@ const TiendaNubeProductManager = () => {
 
   // FUNCIÓN PARA GUARDAR EDICIONES DE LA IMAGEN ACTUAL
   const saveCurrentImageEdits = async () => {
-    if (!currentImagePath || !currentImage || !window.electronAPI) return;
-
+    if (!currentImagePath || !currentImage || !window.electronAPI || !hasUnsavedChanges) return;
+  
     try {
-      // Si la imagen ha sido editada (tiene máscara o cambios), guardarla
-      if (maskCanvas || currentImage !== originalImage) {
-        const canvas = document.createElement('canvas');
-        canvas.width = currentImage.width;
-        canvas.height = currentImage.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(currentImage, 0, 0);
-
-        const imageData = canvas.toDataURL('image/jpeg', 0.95);
-        await window.electronAPI.saveImage(currentImagePath, imageData);
-        console.log(`Imagen guardada: ${currentDisplayedImage}`);
+      console.log(`Guardando cambios de imagen: ${currentDisplayedImage}`);
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = currentImage.width;
+      canvas.height = currentImage.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(currentImage, 0, 0);
+  
+      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+      const result = await window.electronAPI.saveImage(currentImagePath, imageData);
+      
+      if (result.success) {
+        console.log(`Imagen guardada exitosamente: ${currentDisplayedImage}`);
+        setHasUnsavedChanges(false);
+        
+        // Actualizar la imagen original para futuras comparaciones
+        setOriginalImage(currentImage);
+      } else {
+        console.error('Error guardando imagen:', result.error);
       }
     } catch (error) {
       console.error('Error saving image edits:', error);
@@ -192,6 +203,7 @@ const TiendaNubeProductManager = () => {
         setCurrentDisplayedImage(filename);
         setCurrentImagePath(imagePath);
         setZoomFactor(1.0);
+        setHasUnsavedChanges(false);
         setMaskCanvas(null);
         setTimeout(() => displayImage(img), 100);
       };
@@ -516,12 +528,19 @@ const TiendaNubeProductManager = () => {
 
   // FUNCIÓN NEXT PRODUCT CORREGIDA
   const nextProduct = async () => {
-    if (!imageQueue.length) return;
+    if (!imageQueue.length) return
 
-    // 1. Guardar el producto actual
+    // 1. Guardar cambios pendientes antes de proceder
+    if (hasUnsavedChanges && currentImage && currentImagePath) {
+      await saveCurrentImageEdits();
+    }
+
+    // 2. Guardar el producto actual
     await saveCurrentProduct();
 
-    // 2. Mover todas las imágenes del producto actual a procesadas
+    // ... resto del código igual
+
+    // 3. Mover todas las imágenes del producto actual a procesadas
     if (window.electronAPI && workingDirectory) {
       for (const filename of currentProductAllImages) {
         const sourcePath = `${workingDirectory}/${filename}`;
@@ -543,18 +562,18 @@ const TiendaNubeProductManager = () => {
       }
     }
 
-    // 3. Filtrar la cola de imágenes
+    // 4. Filtrar la cola de imágenes
     const newQueue = imageQueue.filter(img => !currentProductAllImages.includes(img));
     setImageQueue(newQueue);
 
     if (newQueue.length === 0) {
       setAllProductsProcessed(true);
-      return;
+      return
     }
 
-    // 4. Cargar el siguiente producto
+    // 5. Cargar el siguiente producto
     const nextIndex = Math.min(currentImageIndex, newQueue.length - 1);
-    setCurrentImageIndex(nextIndex);
+    setCurrentImageIndex(nextIndex)
     await loadCurrentProduct(newQueue[nextIndex], csvData, true); // isNewProduct = true
   };
 
@@ -606,6 +625,7 @@ const TiendaNubeProductManager = () => {
 
   // Funciones de edición de imagen
   const handleZoom = (delta) => {
+    if (isProcessingInpainting) return;
     const factor = delta > 0 ? 1.1 : 0.9;
     const newZoom = Math.max(0.1, Math.min(5.0, zoomFactor * factor));
     setZoomFactor(newZoom);
@@ -616,11 +636,8 @@ const TiendaNubeProductManager = () => {
   };
 
   const resetImage = () => {
-    if (originalImage) {
-      setCurrentImage(originalImage);
-      setZoomFactor(1.0);
-      setMaskCanvas(null);
-      displayImage(originalImage);
+    if (!isProcessingInpainting) {
+      undoChanges(); // Usar la nueva función de deshacer
     }
   };
 
@@ -630,15 +647,15 @@ const TiendaNubeProductManager = () => {
     setIsDrawing(true);
     drawBrush(e);
   };
-
+  
   const drawBrush = (e) => {
     if (!isDrawing || !currentImage) return;
-
+  
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
+  
     // Verificar si está dentro de la imagen
     if (x < displayOffset.x || y < displayOffset.y ||
       x > displayOffset.x + displaySize.width ||
@@ -681,31 +698,55 @@ const TiendaNubeProductManager = () => {
   };
 
   const stopDrawing = async () => {
-    if (isDrawing) {
+    if (isDrawing && maskCanvas) {
       setIsDrawing(false);
       await performInpainting();
+    } else {
+      setIsDrawing(false);
     }
   };
 
   const performInpainting = async () => {
-    if (!maskCanvas || !currentImage || !workingDirectory) return;
-
+    if (!maskCanvas || !currentImage || !workingDirectory || isProcessingInpainting) return;
+  
     try {
+      setIsProcessingInpainting(true);
+      console.log('Iniciando inpainting...');
+  
       if (window.electronAPI) {
         const maskData = maskCanvas.toDataURL();
         const processedImage = await window.electronAPI.processInpainting(currentImagePath, maskData);
-
+  
         // Cargar la imagen procesada
         const img = new Image();
         img.onload = () => {
           setCurrentImage(img);
           setMaskCanvas(null);
+          setHasUnsavedChanges(true); // Marcar como editada
           displayImage(img);
+          console.log('Inpainting completado');
+        };
+        img.onerror = (error) => {
+          console.error('Error loading processed image:', error);
         };
         img.src = processedImage;
       }
     } catch (error) {
       console.error('Error performing inpainting:', error);
+    } finally {
+      setIsProcessingInpainting(false);
+    }
+  };
+
+  // Agregar después de performInpainting
+  const undoChanges = () => {
+    if (originalImage) {
+      setCurrentImage(originalImage);
+      setZoomFactor(1.0);
+      setMaskCanvas(null);
+      setHasUnsavedChanges(false);
+      displayImage(originalImage);
+      console.log('Cambios deshechos - imagen restaurada a original');
     }
   };
 
@@ -941,6 +982,7 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     setCurrentImagePath('');
   };
 
+
   const handleCombinationSaved = () => {
     loadProductImagesMap().then(() => {
       loadImagesFromData(csvData);
@@ -1031,52 +1073,76 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
             <div className="flex-1 p-4">
               <canvas
                 ref={canvasRef}
-                className="w-full h-full bg-gray-900 cursor-crosshair"
+              className={`w-full h-full bg-gray-900 ${isProcessingInpainting ? 'cursor-wait' : 'cursor-crosshair'}`}
                 onMouseDown={startDrawing}
                 onMouseMove={drawBrush}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
                 onWheel={(e) => {
                   e.preventDefault();
-                  handleZoom(e.deltaY > 0 ? -1 : 1);
+                if (!isProcessingInpainting) handleZoom(e.deltaY > 0 ? -1 : 1);
                 }}
               />
             </div>
 
-            <div className="p-4 border-t border-gray-700">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleZoom(1)}
-                  className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
-                >
-                  <ZoomIn size={16} />
-                </button>
-                <button
-                  onClick={() => handleZoom(-1)}
-                  className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
-                >
-                  <ZoomOut size={16} />
-                </button>
-                <button
-                  onClick={resetImage}
-                  className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
-                >
-                  <RotateCcw size={16} />
-                </button>
-                <div className="flex items-center gap-2 ml-4">
-                  <span className="text-sm">Pincel:</span>
-                  <input
-                    type="range"
-                    min="5"
-                    max="100"
-                    value={brushSize}
-                    onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                    className="w-20"
-                  />
-                  <span className="text-sm w-8">{brushSize}</span>
-                </div>
+          <div className="p-4 border-t border-gray-700">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleZoom(1)}
+                className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
+                disabled={isProcessingInpainting}
+              >
+                <ZoomIn size={16} />
+              </button>
+              <button
+                onClick={() => handleZoom(-1)}
+                className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
+                disabled={isProcessingInpainting}
+              >
+                <ZoomOut size={16} />
+              </button>
+              <button
+                onClick={undoChanges}
+                className="p-2 bg-red-600 hover:bg-red-500 rounded disabled:opacity-50"
+                disabled={isProcessingInpainting || !hasUnsavedChanges}
+                title="Deshacer todos los cambios"
+              >
+                <Undo2 size={16} />
+              </button>
+              <button
+                onClick={resetImage}
+                className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
+                disabled={isProcessingInpainting}
+              >
+                <RotateCcw size={16} />
+              </button>
+              <div className="flex items-center gap-2 ml-4">
+                <span className="text-sm">Pincel:</span>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                  className="w-20"
+                  disabled={isProcessingInpainting}
+                />
+                <span className="text-sm w-8">{brushSize}</span>
               </div>
+              {isProcessingInpainting && (
+                <div className="flex items-center gap-2 ml-4 text-blue-400">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                  <span className="text-sm">Procesando...</span>
+                </div>
+              )}
+              {hasUnsavedChanges && (
+                <div className="flex items-center gap-2 ml-4 text-yellow-400">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                  <span className="text-sm">Sin guardar</span>
+                </div>
+              )}
             </div>
+          </div>
             <ProductThumbnails />
           </div>
 

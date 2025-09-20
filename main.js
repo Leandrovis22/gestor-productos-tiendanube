@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const Papa = require('papaparse');
 const sharp = require('sharp');
+const cv = require('opencv.js');
 
 let mainWindow;
 
@@ -356,20 +357,40 @@ ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
 
 // Función para procesar inpainting (simulado)
 ipcMain.handle('process-inpainting', async (event, imagePath, maskData) => {
-  try {
-    // En una implementación real, aquí usarías una librería de procesamiento de imágenes
-    // Por ahora, simplemente retornamos la imagen original
-    const imageBuffer = await fs.readFile(imagePath);
-    const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
-    
-    // Aquí podrías integrar con OpenCV, Sharp, o una API de inpainting
-    console.log('Processing inpainting for:', imagePath);
-    
-    return base64Image;
-  } catch (error) {
-    console.error('Error processing inpainting:', error);
-    throw error;
-  }
+    try {
+        console.log('Iniciando inpainting real para:', imagePath);
+
+        // 1. Cargar la imagen original y la máscara
+        const imageBuffer = await fs.readFile(imagePath);
+        const src = cv.imdecode(imageBuffer);
+
+        const maskBase64Data = maskData.replace(/^data:image\/\w+;base64,/, '');
+        const maskBuffer = Buffer.from(maskBase64Data, 'base64');
+        const mask = cv.imdecode(maskBuffer, cv.IMREAD_GRAYSCALE);
+
+        // 2. Realizar el inpainting
+        // cv.INPAINT_TELEA: Algoritmo de "Fast Marching Method". Bueno para rayones o áreas pequeñas.
+        // cv.INPAINT_NS: Algoritmo de "Navier-Stokes". Bueno para áreas más grandes y complejas.
+        const dst = new cv.Mat();
+        cv.inpaint(src, mask, dst, 3, cv.INPAINT_TELEA);
+
+        // 3. Convertir la imagen resultante a buffer
+        const outBuffer = cv.imencode('.jpg', dst);
+
+        // 4. Devolver como data URL
+        const base64Image = `data:image/jpeg;base64,${Buffer.from(outBuffer).toString('base64')}`;
+
+        // 5. Liberar memoria
+        src.delete();
+        mask.delete();
+        dst.delete();
+
+        console.log('Inpainting completado.');
+        return base64Image;
+    } catch (error) {
+        console.error('Error procesando inpainting:', error);
+        throw error;
+    }
 });
 
 ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr) => {
