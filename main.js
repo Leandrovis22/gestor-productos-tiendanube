@@ -3,8 +3,6 @@ const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const Papa = require('papaparse');
-const sharp = require('sharp');
-const cv = require('opencv.js');
 
 let mainWindow;
 
@@ -117,20 +115,6 @@ ipcMain.handle('load-image', async (event, imagePath) => {
     return base64Image;
   } catch (error) {
     console.error('Error loading image:', error);
-    throw error;
-  }
-});
-
-ipcMain.handle('get-image-info', async (event, imagePath) => {
-  try {
-    const metadata = await sharp(imagePath).metadata();
-    return {
-      width: metadata.width,
-      height: metadata.height,
-      format: metadata.format
-    };
-  } catch (error) {
-    console.error('Error getting image info:', error);
     throw error;
   }
 });
@@ -344,120 +328,6 @@ ipcMain.handle('list-files', async (event, dirPath, extensions) => {
     return [];
   }
 });
-
-ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
-  try {
-    await fs.appendFile(filePath, data, encoding || 'utf-8');
-    return { success: true };
-  } catch (error) {
-    console.error('Error appending to file:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Función para procesar inpainting
-ipcMain.handle('process-inpainting', async (event, imagePath, maskData) => {
-  try {
-    // Leer la imagen original
-    const imageBuffer = await fs.readFile(imagePath);
-    
-    // Convertir máscara base64 a buffer
-    const base64Mask = maskData.replace(/^data:image\/\w+;base64,/, '');
-    const maskBuffer = Buffer.from(base64Mask, 'base64');
-    
-    // Usar Sharp para obtener la imagen en formato que OpenCV pueda usar
-    const imageSharp = sharp(imageBuffer);
-    const imageMetadata = await imageSharp.metadata();
-    
-    // Convertir imagen a RGB (como hace Python con COLOR_RGB2BGR)
-    const imageRgb = await imageSharp
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    // Convertir máscara a escala de grises
-    const maskGray = await sharp(maskBuffer)
-      .resize(imageMetadata.width, imageMetadata.height)
-      .greyscale()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    // Crear matrices OpenCV
-    const imgMat = cv.matFromImageData({
-      data: new Uint8ClampedArray(imageRgb.data),
-      width: imageMetadata.width,
-      height: imageMetadata.height
-    });
-    
-    // Crear máscara OpenCV (imitando el threshold de Python)
-    const maskMat = new cv.Mat(imageMetadata.height, imageMetadata.width, cv.CV_8UC1);
-    maskMat.data.set(maskGray.data);
-    
-    // Aplicar threshold como en Python: cv2.threshold(mask_cv, 127, 255, cv2.THRESH_BINARY)
-    const thresholdMask = new cv.Mat();
-    cv.threshold(maskMat, thresholdMask, 127, 255, cv.THRESH_BINARY);
-    
-    // Aplicar inpainting con los mismos parámetros que Python
-    // cv2.inpaint(img_cv, mask_cv, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
-    const result = new cv.Mat();
-    cv.inpaint(imgMat, thresholdMask, result, 3, cv.INPAINT_TELEA);
-    
-    // Convertir resultado de vuelta a buffer
-    const canvas = document.createElement('canvas');
-    cv.imshow(canvas, result);
-    const resultImageData = canvas.getContext('2d').getImageData(
-      0, 0, imageMetadata.width, imageMetadata.height
-    );
-    
-    // Convertir a JPEG como la imagen procesada final
-    const processedImage = await sharp(Buffer.from(resultImageData.data), {
-      raw: {
-        width: imageMetadata.width,
-        height: imageMetadata.height,
-        channels: 4
-      }
-    })
-    .removeAlpha()
-    .jpeg({ quality: 95 })
-    .toBuffer();
-    
-    // Limpiar memoria OpenCV
-    imgMat.delete();
-    maskMat.delete();
-    thresholdMask.delete();
-    result.delete();
-    
-    const base64Result = `data:image/jpeg;base64,${processedImage.toString('base64')}`;
-    return base64Result;
-    
-  } catch (error) {
-    console.error('Error processing inpainting:', error);
-    // Fallback a método simple si OpenCV falla
-    return performFallbackInpainting(imagePath, maskData);
-  }
-});
-
-// Método fallback simple si OpenCV no está disponible
-async function performFallbackInpainting(imagePath, maskData) {
-  try {
-    const imageBuffer = await fs.readFile(imagePath);
-    const base64Mask = maskData.replace(/^data:image\/\w+;base64,/, '');
-    const maskBuffer = Buffer.from(base64Mask, 'base64');
-    
-    const imageSharp = sharp(imageBuffer);
-    const imageMetadata = await imageSharp.metadata();
-    
-    // Aplicar blur simple en las áreas marcadas
-    const blurred = await imageSharp
-      .blur(5)
-      .jpeg({ quality: 95 })
-      .toBuffer();
-    
-    return `data:image/jpeg;base64,${blurred.toString('base64')}`;
-  } catch (error) {
-    console.error('Fallback inpainting failed:', error);
-    throw error;
-  }
-}
 
 ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr) => {
   try {
