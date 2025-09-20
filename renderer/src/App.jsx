@@ -9,8 +9,31 @@ import {
   ZoomOut,
   RotateCcw
 } from 'lucide-react';
-import { LocalImage } from './LocalImage';
 
+// Componente interno para manejar la carga de imágenes locales en las miniaturas
+const ProductThumbnailImage = ({ path, alt, className }) => {
+  const [src, setSrc] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadImage = async () => {
+      if (window.electronAPI && path) {
+        try {
+          const imageData = await window.electronAPI.loadImage(path);
+          if (isMounted) {
+            setSrc(imageData);
+          }
+        } catch (error) {
+          console.error(`Error loading image ${path}:`, error);
+        }
+      }
+    };
+    loadImage();
+    return () => { isMounted = false; };
+  }, [path]);
+
+  return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
+};
 const TiendaNubeProductManager = () => {
   // Estados principales
   const [csvData, setCsvData] = useState([]);
@@ -451,7 +474,7 @@ const TiendaNubeProductManager = () => {
                 onClick={() => switchToProductImage(imgName)}
                 title={`${imgName} ${isCurrentlyDisplayed ? '(mostrando)' : ''}`}
               >
-                <LocalImage
+                <ProductThumbnailImage
                   path={`${workingDirectory}/${imgName}`}
                   alt={imgName}
                   className="w-16 h-16 object-cover rounded-sm"

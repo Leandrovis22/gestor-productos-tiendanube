@@ -1,5 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { LocalImage } from './LocalImage';
+import { useState, useEffect } from 'react';
+
+// Componente interno para manejar la carga de imágenes locales
+const InlineLocalImage = ({ path, alt, className }) => {
+  const [src, setSrc] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadImage = async () => {
+      if (window.electronAPI && path) {
+        try {
+          const imageData = await window.electronAPI.loadImage(path);
+          if (isMounted) {
+            setSrc(imageData);
+          }
+        } catch (error) {
+          console.error(`Error loading image ${path}:`, error);
+        }
+      }
+    };
+    loadImage();
+    return () => { isMounted = false; };
+  }, [path]);
+
+  return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
+};
 
 const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
   const [imagesInDirectory, setImagesInDirectory] = useState([]);
@@ -115,7 +139,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
             className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${selectedImages.includes(imageName) ? (imageName === primaryImage ? 'border-green-500' : 'border-blue-500') : 'border-gray-700 hover:border-gray-600'}`}
             onClick={() => toggleImageSelection(imageName)}
           >
-            <LocalImage
+            <InlineLocalImage
               path={`${workingDirectory}/${imageName}`}
               alt={imageName}
               className="w-full h-32 object-cover"
