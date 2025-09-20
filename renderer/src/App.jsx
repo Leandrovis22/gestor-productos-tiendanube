@@ -759,6 +759,25 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     return () => window.removeEventListener('resize', handleResize);
   }, [currentImage]);
 
+  // Efecto para manejar el zoom con la rueda del mouse de forma no pasiva
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      handleZoom(e.deltaY > 0 ? -1 : 1);
+    };
+
+    // Agregar el event listener con la opción passive: false
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+    // Limpiar el event listener al desmontar el componente
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleZoom]); // Depender de handleZoom (o sus dependencias si se usa useCallback)
+
   useEffect(() => {
     if (csvData.length > 0 && workingDirectory && imageQueue.length > 0) {
       if (!currentImage || currentImageIndex === 0) {
@@ -891,11 +910,7 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
             <div className="flex-1 p-4">
               <canvas
                 ref={canvasRef}
-              className={`w-full h-full bg-gray-900 cursor-crosshair`}
-                onWheel={(e) => {
-                  e.preventDefault();
-                handleZoom(e.deltaY > 0 ? -1 : 1);
-                }}
+                className={`w-full h-full bg-gray-900 cursor-crosshair`}
               />
             </div>
 
