@@ -64,6 +64,7 @@ const TiendaNubeProductManager = () => {
   const [productName, setProductName] = useState('');
   const [productPrice, setProductPrice] = useState('');
   const [productStock, setProductStock] = useState('10');
+  const [productImages, setProductImages] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [originalCategories, setOriginalCategories] = useState('');
   const [savedImages, setSavedImages] = useState(new Set());
@@ -394,6 +395,16 @@ const TiendaNubeProductManager = () => {
       setProductName('');
       setProductPrice('');
       setOriginalCategories('');
+      setProductImages([]);
+    }
+
+    // Cargar todas las imágenes del producto
+    const urlId = row ? row['Identificador de URL'] : null;
+    if (urlId) {
+      const allImagesForProduct = data.filter(r => r['Identificador de URL'] === urlId && r.archivo).map(r => r.archivo);
+      setProductImages(allImagesForProduct);
+    } else {
+      setProductImages(filename ? [filename] : []);
     }
 
     // Limpiar variantes
@@ -407,24 +418,39 @@ const TiendaNubeProductManager = () => {
   // Funciones de navegación
   const nextImage = () => {
     if (!imageQueue.length) return;
-    const filename = imageQueue[currentImageIndex];
+    const mainImageFilename = imageQueue[currentImageIndex];
 
     // Guardar siempre el producto actual
     saveCurrentProduct();
 
-    // Mover la imagen a la carpeta "procesadas"
-    if (window.electronAPI && workingDirectory) {
-      const sourcePath = `${workingDirectory}/${filename}`;
-      const destPath = `${workingDirectory}/procesadas/${filename}`;
+    // Identificar todas las imágenes del producto actual (principal y secundarias)
+    const currentRow = csvData.find(r => r.archivo === mainImageFilename);
+    const urlId = currentRow ? currentRow['Identificador de URL'] : null;
+    const imagesToMove = urlId
+      ? csvData.filter(r => r['Identificador de URL'] === urlId && r.archivo).map(r => r.archivo)
+      : [mainImageFilename];
 
-      window.electronAPI.fileExists(sourcePath).then(exists => {
-        if (exists) {
-          window.electronAPI.moveFile(sourcePath, destPath)
-            .then(result => {
-              if (result.success) console.log(`Imagen ${filename} movida a procesadas.`);
-              else console.error('Error moviendo archivo:', result.error);
-            });
+    // Mover todas las imágenes del producto a la carpeta "procesadas"
+    if (window.electronAPI && workingDirectory) {
+      imagesToMove.forEach(filename => {
+        const sourcePath = `${workingDirectory}/${filename}`;
+        const destPath = `${workingDirectory}/procesadas/${filename}`;
+
+        window.electronAPI.fileExists(sourcePath).then(exists => {
+          if (exists) {
+            window.electronAPI.moveFile(sourcePath, destPath)
+              .then(result => {
+                if (result.success) {
+                  console.log(`Imagen ${filename} movida a procesadas.`);
+                  // Eliminar de la lista de imágenes para combinar
+                  setImagesInDirectory(prev => prev.filter(img => img !== filename));
+                } else {
+                  console.error(`Error moviendo archivo ${filename}:`, result.error);
+                }
+              });
+          }
         }
+      );
       });
     }
     // Si solo hay un producto, ya se guardó, no hacemos nada más
@@ -449,31 +475,42 @@ const TiendaNubeProductManager = () => {
 
   const skipImage = async () => {
     if (currentImageIndex < imageQueue.length && workingDirectory) {
-      const filename = imageQueue[currentImageIndex];
+      const mainImageFilename = imageQueue[currentImageIndex];
 
       // Verificar si la imagen ya fue guardada
-      if (savedImages.has(filename)) {
+      if (savedImages.has(mainImageFilename)) {
         alert('Esta imagen ya ha sido guardada y no puede ser saltada. Si cometiste un error, deberás editar el CSV manualmente.');
         return;
       }
 
-      try {
-        // Mover imagen a carpeta saltadas
-        const sourcePath = `${workingDirectory}/${filename}`;
-        const destPath = `${workingDirectory}/saltadas/${filename}`;
+      // Identificar todas las imágenes del producto actual
+      const currentRow = csvData.find(r => r.archivo === mainImageFilename);
+      const urlId = currentRow ? currentRow['Identificador de URL'] : null;
+      const imagesToSkip = urlId
+        ? csvData.filter(r => r['Identificador de URL'] === urlId && r.archivo).map(r => r.archivo)
+        : [mainImageFilename];
 
-        const exists = await window.electronAPI.fileExists(sourcePath);
-        if (exists) {
-          const result = await window.electronAPI.moveFile(sourcePath, destPath);
-          if (result.success) {
-            console.log(`Image ${filename} moved to saltadas folder`);
-          } else {
-            console.error('Error moving file:', result.error);
+      try {
+        // Mover todas las imágenes a la carpeta "saltadas"
+        for (const filename of imagesToSkip) {
+          const sourcePath = `${workingDirectory}/${filename}`;
+          const destPath = `${workingDirectory}/saltadas/${filename}`;
+
+          const exists = await window.electronAPI.fileExists(sourcePath);
+          if (exists) {
+            const result = await window.electronAPI.moveFile(sourcePath, destPath);
+            if (result.success) {
+              console.log(`Image ${filename} moved to saltadas folder`);
+              // Eliminar de la lista de imágenes para combinar
+              setImagesInDirectory(prev => prev.filter(img => img !== filename));
+            } else {
+              console.error(`Error moving file ${filename}:`, result.error);
+            }
           }
         }
 
         // Actualizar CSV data removiendo la imagen saltada
-        const updatedCsvData = csvData.filter(row => row.archivo !== filename);
+        const updatedCsvData = csvData.filter(row => !imagesToSkip.includes(row.archivo));
         setCsvData(updatedCsvData);
 
         // Actualizar cola de imágenes
@@ -759,6 +796,12 @@ const TiendaNubeProductManager = () => {
     if (newIndex !== -1) {
       setCurrentImageIndex(newIndex);
       loadCurrentImage(primaryImageForCombination);
+      // Cargar todas las imágenes del producto combinado para las miniaturas
+      const productData = csvData.find(row => row.archivo === primaryImageForCombination);
+      if (productData && productData['Identificador de URL']) {
+        const allImagesForProduct = csvData.filter(r => r['Identificador de URL'] === productData['Identificador de URL'] && r.archivo).map(r => r.archivo);
+        setProductImages(allImagesForProduct);
+      }
     }
 
     setIsCombinationModalOpen(false); // Cierra el modal
@@ -889,6 +932,7 @@ const TiendaNubeProductManager = () => {
     setImagesInDirectory([]);
     setSelectedImagesForCombination([]);
     setPrimaryImageForCombination(null);
+    setProductImages([]);
   };
 
   return (
@@ -1014,6 +1058,31 @@ const TiendaNubeProductManager = () => {
                 </div>
               </div>
             </div>
+            {/* Miniaturas de imágenes del producto */}
+            {activeTab === 'general' && productImages.length > 1 && (
+              <div className="p-2 border-t border-gray-700">
+                <h4 className="text-xs text-gray-400 mb-2">Otras imágenes del producto:</h4>
+                <div className="flex gap-2 overflow-x-auto">
+                  {productImages.map(imgName => (
+                    <div
+                      key={imgName}
+                      className={`cursor-pointer border-2 rounded ${imageQueue[currentImageIndex] === imgName ? 'border-blue-500' : 'border-transparent hover:border-gray-500'}`}
+                      onClick={() => {
+                        if (imageQueue[currentImageIndex] !== imgName) {
+                          loadCurrentImage(imgName);
+                        }
+                      }}
+                    >
+                      <LocalImage
+                        path={`${workingDirectory}/${imgName}`}
+                        alt={imgName}
+                        className="w-16 h-16 object-cover rounded-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Panel derecho - Formulario */}
