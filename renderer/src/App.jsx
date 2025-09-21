@@ -68,6 +68,7 @@ const TiendaNubeProductManager = () => {
 
   const imageRef = useRef(null);
   const canvasRef = useRef(null);
+  const isInpaintingUpdateRef = useRef(false);
 
   const predefinedColors = [
     "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste",
@@ -439,6 +440,12 @@ const TiendaNubeProductManager = () => {
   const nextProduct = async () => {
     if (!imageQueue.length) return;
 
+    // Guardar la imagen actual ANTES de moverla
+    // Si la imagen fue editada (inpainting), currentImage tendrá la versión editada.
+    if (currentImage && currentImagePath) {
+      await saveImageFromState(currentImage, currentImagePath);
+    }
+
     await saveCurrentProduct();
 
     if (window.electronAPI && workingDirectory) {
@@ -656,6 +663,20 @@ const TiendaNubeProductManager = () => {
     });
   };
 
+  // Nueva función para guardar la imagen desde el estado, no desde el canvas
+  const saveImageFromState = async (imageObject, imagePath) => {
+    if (!window.electronAPI || !imageObject || !imagePath) return;
+
+    // Crear un canvas temporal para convertir el objeto Image a base64
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageObject.naturalWidth;
+    tempCanvas.height = imageObject.naturalHeight;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(imageObject, 0, 0);
+    const imageDataUrl = tempCanvas.toDataURL('image/jpeg', 0.98);
+    await window.electronAPI.saveEditedImage(imagePath, imageDataUrl);
+  }
+
 
   // Fixed displayImage function - eliminates black borders and maintains proper scaling
   const displayImage = (img) => {
@@ -754,6 +775,13 @@ const TiendaNubeProductManager = () => {
     loadProductImagesMap().then(() => {
       loadImagesFromData(csvData);
     });
+  };
+
+  const handleInpaintingImageUpdate = (img) => {
+    isInpaintingUpdateRef.current = true; // marcar que la actualización viene de inpainting
+    setCurrentImage(img);
+    setTimeout(() => displayImage(img), 50);
+    setTimeout(() => { isInpaintingUpdateRef.current = false; }, 100);
   };
 
   if (activeTab === 'combinar') {
@@ -856,7 +884,7 @@ const TiendaNubeProductManager = () => {
               mainCanvasRef={canvasRef}
               currentImage={currentImage}
               currentImagePath={currentImagePath}
-              onImageSaved={(img) => { setCurrentImage(img); setTimeout(() => displayImage(img), 50); }}
+              onImageUpdateFromInpaint={handleInpaintingImageUpdate}
               zoomFactor={zoomFactor}
               displayOffset={displayOffset}
               displaySize={displaySize}

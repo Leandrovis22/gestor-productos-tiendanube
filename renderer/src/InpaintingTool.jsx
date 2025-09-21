@@ -5,8 +5,8 @@ import { displayImage as displayImageHelper } from './helpers';
 const InpaintingTool = ({ 
   mainCanvasRef, 
   currentImage, 
-  currentImagePath, 
-  onImageSaved, 
+  currentImagePath,
+  onImageUpdateFromInpaint,
   zoomFactor, 
   displayOffset, 
   displaySize 
@@ -122,14 +122,12 @@ const InpaintingTool = ({
     // Restore canvas state
     ctx.restore();
 
-    // Update current path
-    setMaskPaths(prev => {
-      const newPaths = [...prev];
-      if (newPaths.length > 0) {
-        newPaths[newPaths.length - 1].push(coords);
-      }
-      return newPaths;
-    });
+    // Actualizar el trazo actual.
+    // Es seguro mutar el último trazo directamente porque fue creado como un nuevo array en startDrawing.
+    // Esto evita problemas de estado obsoleto (stale state) durante eventos rápidos de mousemove.
+    if (maskPaths.length > 0) {
+      maskPaths[maskPaths.length - 1].push(coords);
+    }
 
     lastPointRef.current = coords;
   };
@@ -180,19 +178,8 @@ const InpaintingTool = ({
       }
       
       // Restaurar imagen original - IMPORTANTE: usar una función especial que NO dispare guardado
-      restoreImageOnly(originalImageBackup);
-      
-      // Reset backup state
-      setHasBackedUpOriginal(false);
-      setOriginalImageBackup(null);
-    }
-  };
-
-  // Función especial para restaurar imagen sin disparar guardado automático
-  const restoreImageOnly = (img) => {
-    // Actualizar directamente el estado del componente padre sin llamar onImageSaved
-    if (mainCanvasRef.current) {
-      displayImageHelper(img, mainCanvasRef.current, zoomFactor);
+      // Notificamos al padre para que actualice su estado y se redibuje todo correctamente.
+      onImageUpdateFromInpaint(originalImageBackup);
     }
   };
 
@@ -262,42 +249,28 @@ const InpaintingTool = ({
       
       if (result.success) {
         console.log('✅ [INPAINT] Inpainting completado, recargando imagen...');
-        
-        // CRUCIAL: Limpiar máscaras ANTES de recargar
         setMaskPaths([]);
-        
-        // Esperar un poco más para asegurar que el archivo fue escrito
-        setTimeout(async () => {
-          try {
-            const imageData = await window.electronAPI.loadImage(currentImagePath);
-            const img = new Image();
-            
-            img.onload = () => {
-              console.log('🖼️ [INPAINT] Nueva imagen cargada exitosamente');
-              
-              // IMPORTANTE: NO llamar a onImageSaved para evitar auto-guardado
-              // Solo actualizar el canvas directamente
-              if (mainCanvasRef.current) {
-                displayImageHelper(img, mainCanvasRef.current, zoomFactor);
-              }
-              
-              // Notificar al padre SOLO para actualizar currentImage, pero SIN disparar guardado
-              // Esto es necesario para que las funciones de zoom, etc. funcionen correctamente
-              onImageSaved(img);
-            };
-            
-            img.onerror = () => {
-              console.error('❌ [INPAINT] Error cargando imagen procesada');
-              throw new Error('Error cargando imagen procesada');
-            };
-            
-            img.src = imageData;
-          } catch (reloadError) {
-            console.error('❌ [INPAINT] Error recargando imagen:', reloadError);
-            alert(`Error recargando imagen: ${reloadError.message}`);
-          }
-        }, 500); // Aumentar delay a 500ms para asegurar que el archivo fue completamente escrito
-        
+
+        // La imagen procesada ahora viene como base64
+        const img = new Image();
+        img.onload = () => {
+          console.log('🖼️ [INPAINT] Nueva imagen cargada en memoria exitosamente');
+          // 1. Notificar al componente padre para que actualice la imagen en el estado.
+          //    Esto asegura que el resto de la app (zoom, etc.) use la imagen correcta.
+          onImageUpdateFromInpaint(img);
+          // 2. Forzar el redibujado inmediato del canvas con la nueva imagen.
+          //    Esto soluciona el problema de que el canvas no se actualice a tiempo.
+          displayImageHelper(img, mainCanvasRef.current, zoomFactor);
+        };
+        img.onerror = () => {
+          console.error('❌ [INPAINT] Error cargando la imagen procesada desde base64');
+          alert('Error al cargar la imagen procesada.');
+        };
+
+        // DEBUG: Log the first 100 chars of the base64 string to check its format
+        console.log('[INPAINT] Received image data:', result.imageData.substring(0, 100) + '...');
+
+        img.src = result.imageData;
       } else {
         throw new Error(result.error || 'Error desconocido en inpainting');
       }

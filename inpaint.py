@@ -21,13 +21,13 @@ def inpaint_image(image_path, mask_path, output_path, radius=3):
         # Read the original image
         img = cv2.imread(image_path)
         if img is None:
-            print(f"Error: Could not load image from {image_path}")
+            print(f"Error: Could not load image from {image_path}", file=sys.stderr)
             return False
         
         # Read the mask
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         if mask is None:
-            print(f"Error: Could not load mask from {mask_path}")
+            print(f"Error: Could not load mask from {mask_path}", file=sys.stderr)
             return False
         
         # Ensure mask dimensions match image dimensions
@@ -43,20 +43,21 @@ def inpaint_image(image_path, mask_path, output_path, radius=3):
         # Save the result
         success = cv2.imwrite(output_path, result, [cv2.IMWRITE_JPEG_QUALITY, 98])
         if not success:
-            print(f"Error: Could not save result to {output_path}")
+            print(f"Error: Could not save result to {output_path}", file=sys.stderr)
             return False
         
-        print(f"Inpainting completed successfully. Output saved to {output_path}")
+        # CRUCIAL: Imprimir la ruta de salida a stdout en caso de éxito para que Node.js la capture
+        print(output_path)
         return True
         
     except Exception as e:
-        print(f"Error during inpainting: {str(e)}")
+        print(f"Error during inpainting: {str(e)}", file=sys.stderr)
         return False
 
 def main():
     if len(sys.argv) != 4 and len(sys.argv) != 5:
-        print("Usage: python inpaint.py <image_path> <mask_path> <output_path> [radius]")
-        print("Example: python inpaint.py input.jpg mask.png output.jpg 3")
+        print("Usage: python inpaint.py <image_path> <mask_path> <output_path> [radius]", file=sys.stderr)
+        print("Example: python inpaint.py input.jpg mask.png output.jpg 3", file=sys.stderr)
         sys.exit(1)
     
     image_path = sys.argv[1]
@@ -66,11 +67,11 @@ def main():
     
     # Validate input files exist
     if not os.path.exists(image_path):
-        print(f"Error: Image file does not exist: {image_path}")
+        print(f"Error: Image file does not exist: {image_path}", file=sys.stderr)
         sys.exit(1)
     
     if not os.path.exists(mask_path):
-        print(f"Error: Mask file does not exist: {mask_path}")
+        print(f"Error: Mask file does not exist: {mask_path}", file=sys.stderr)
         sys.exit(1)
     
     # Ensure output directory exists
@@ -82,9 +83,9 @@ def main():
     success = inpaint_image(image_path, mask_path, output_path, radius)
     
     if success:
-        sys.exit(0)
+        sys.exit(0) # Salir con código 0 si tiene éxito
     else:
-        sys.exit(1)
+        sys.exit(1) # Salir con código 1 si falla
 
 if __name__ == "__main__":
     main()

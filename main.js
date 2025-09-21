@@ -407,22 +407,28 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
       throw new Error(pythonResult.error || 'Python inpainting script failed');
     }
     
+    // La ruta del archivo de salida ahora viene del stdout del script de Python
+    const successfulOutputPath = pythonResult.output.trim();
+    console.log(`🐍 [MAIN] Python script reported output at: ${successfulOutputPath}`);
+
     // Check if output file was created
     try {
-      await fs.access(tempOutputPath);
+      await fs.access(successfulOutputPath);
     } catch (error) {
+      console.error(`❌ [MAIN] Python script succeeded but output file is missing at ${successfulOutputPath}`);
       throw new Error('Inpainting output file was not created');
     }
     
-    // IMPORTANTE: Solo reemplazar el archivo original, NO disparar save-edited-image
-    await fs.copyFile(tempOutputPath, imagePath);
-    console.log('✅ [MAIN] Archivo de imagen reemplazado exitosamente');
-    
+    // Read the processed image into a buffer
+    const outputBuffer = await fs.readFile(successfulOutputPath);
+    const outputBase64 = outputBuffer.toString('base64');
+    const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
     // Cleanup temporary files
     try {
       await fs.unlink(tempImagePath);
       await fs.unlink(tempMaskPath);
-      await fs.unlink(tempOutputPath);
+      await fs.unlink(successfulOutputPath);
       await fs.rmdir(tempDir);
     } catch (cleanupError) {
       console.warn('⚠️ [MAIN] Warning: Could not clean up temporary files:', cleanupError.message);
@@ -430,7 +436,8 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
     
     return {
       success: true,
-      message: 'Inpainting completed successfully - file replaced on disk'
+      imageData: `data:${mimeType};base64,${outputBase64}`,
+      message: 'Inpainting completed successfully - returning image data'
     };
     
   } catch (error) {
@@ -483,7 +490,7 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
           console.log('✅ [MAIN] Python script ejecutado exitosamente');
           resolve({
             success: true,
-            output: stdout
+            output: stdout.trim() // Trim whitespace from output
           });
         } else {
           console.log(`❌ [MAIN] Python command '${pythonCmd}' failed with code ${code}`);
