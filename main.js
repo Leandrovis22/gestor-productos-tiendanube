@@ -437,19 +437,28 @@ ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData)
     const base64Data = editedImageData.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
     
-    // Crear backup de la imagen original con timestamp
     const backupDir = path.join(path.dirname(originalPath), 'backup_editadas');
     await fs.mkdir(backupDir, { recursive: true });
 
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
     const filename = path.basename(originalPath);
     const filenameParts = filename.split('.');
     const extension = filenameParts.pop();
     const baseFilename = filenameParts.join('.');
-    const backupPath = path.join(backupDir, `${baseFilename}_backup_${timestamp}.${extension}`);
     
-    // Hacer backup de la imagen original
-    await fs.copyFile(originalPath, backupPath);
+    // Verificar si ya existe un backup para esta imagen
+    const filesInBackupDir = await fs.readdir(backupDir);
+    const backupExists = filesInBackupDir.some(file => file.startsWith(`${baseFilename}_backup_`));
+
+    let backupPath = null;
+    if (!backupExists) {
+      // Crear backup de la imagen original con timestamp solo si no existe
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+      backupPath = path.join(backupDir, `${baseFilename}_backup_${timestamp}.${extension}`);
+      await fs.copyFile(originalPath, backupPath);
+      console.log(`[BACKUP] Created backup for ${filename} at ${backupPath}`);
+    } else {
+      console.log(`[BACKUP] Backup for ${filename} already exists. Skipping creation.`);
+    }
     
     // Procesar la imagen manteniendo las dimensiones exactas de la original
     const processedBuffer = await sharp(buffer)
