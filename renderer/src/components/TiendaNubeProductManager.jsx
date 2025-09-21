@@ -51,6 +51,9 @@ const TiendaNubeProductManager = () => {
     setIsProcessing(true);
 
     try {
+      // Guardar la imagen editada ANTES de cualquier otra cosa
+      await imageManager.saveCurrentImageIfEdited();
+
       // Guardar producto actual
       const productData = productForm.getProductData();
       await productManager.saveCurrentProduct(productData, productForm.variantCombinations);
@@ -267,6 +270,7 @@ const TiendaNubeProductManager = () => {
             currentDisplayedImage={imageManager.currentDisplayedImage}
             activeTab={activeTab}
             onImageSelect={handleImageSelect}
+            imageManager={imageManager}
           />
 
           <div className="flex-1 flex flex-col overflow-y-auto bg-gray-900">

@@ -245,24 +245,22 @@ export const useImageManager = () => {
   };
 };
 
-// Componente principal ImageManager
-export const ImageManager = ({ 
-  workingDirectory, 
-  currentProductAllImages, 
-  currentMainProductImage, 
+export const ImageManager = ({
+  workingDirectory,
+  currentProductAllImages,
+  currentMainProductImage,
   currentDisplayedImage,
   activeTab,
   onImageSelect,
-  children 
+  imageManager // Recibe el hook completo
 }) => {
-  const imageManager = useImageManager();
+  // Ahora el hook se usa aquí directamente
+  // const imageManager = useImageManager(); // Descomentar si se elimina la prop
 
   // Efectos para sincronizar con zoom y redimensionado
   useEffect(() => {
     if (imageManager.currentImage) {
-      if (!imageManager.isInpaintingUpdateRef?.current) {
         imageManager.displayImage(imageManager.currentImage);
-      }
     }
   }, [imageManager.zoomFactor, imageManager.currentImage]);
 
@@ -275,7 +273,7 @@ export const ImageManager = ({
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [imageManager.currentImage]);
+  }, [imageManager.currentImage, imageManager.displayImage]);
 
   useEffect(() => {
     const canvas = imageManager.canvasRef.current;
@@ -289,11 +287,13 @@ export const ImageManager = ({
     canvas.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
-      canvas.removeEventListener('wheel', handleWheel);
+      if (canvas) {
+        canvas.removeEventListener('wheel', handleWheel);
+      }
     };
-  }, [imageManager.handleZoom]);
+  }, [imageManager.canvasRef, imageManager.handleZoom]);
 
-  // Componente de miniaturas
+  // Componente de miniaturas (movido aquí)
   const ProductThumbnails = () => {
     if (activeTab !== 'general' || currentProductAllImages.length <= 1) {
       return null;
@@ -370,32 +370,15 @@ export const ImageManager = ({
       >
         <div className="p-2 border-t border-gray-700 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => imageManager.handleZoom(1)} 
-              className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
-            >
-              <ZoomIn size={16} />
-            </button>
-            <button 
-              onClick={() => imageManager.handleZoom(-1)} 
-              className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
-            >
-              <ZoomOut size={16} />
-            </button>
-            <button 
-              onClick={imageManager.resetZoom} 
-              className="p-2 bg-gray-700 hover:bg-gray-600 rounded"
-            >
-              <RotateCcw size={16} />
-            </button>
+            <button onClick={() => imageManager.handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomIn size={16} /></button>
+            <button onClick={() => imageManager.handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomOut size={16} /></button>
+            <button onClick={imageManager.resetZoom} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><RotateCcw size={16} /></button>
           </div>
           {/* Inpainting controls will be injected here */}
         </div>
       </InpaintingTool>
 
       <ProductThumbnails />
-      
-      {children}
     </div>
   );
 };
