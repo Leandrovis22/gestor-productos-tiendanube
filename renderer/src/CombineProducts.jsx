@@ -24,12 +24,12 @@ const InlineLocalImage = ({ path, alt, className }) => {
   return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
 };
 
-const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
+const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
   const [imagesInDirectory, setImagesInDirectory] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [primaryImage, setPrimaryImage] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [csvData, setCsvData] = useState([]);
+  const [selectedDescription, setSelectedDescription] = useState('');
 
   useEffect(() => {
     const loadImages = async () => {
@@ -42,19 +42,8 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
       }
     };
 
-    const loadCsv = async () => {
-        if (window.electronAPI) {
-            const result = await window.electronAPI.selectFile([{ name: 'CSV Files', extensions: ['csv'] }], true);
-            if (result.filePath && !result.canceled) {
-                const data = await window.electronAPI.readCsv(result.filePath);
-                setCsvData(data);
-            }
-        }
-    }
-
     loadImages();
-    if (csvData.length === 0) {
-    }
+    console.log("CSV Data Received in CombineProducts:", csvData);
   }, [workingDirectory]);
 
   const toggleImageSelection = (imageName) => {
@@ -89,14 +78,18 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
 
     const combinationOutputPath = `${workingDirectory}/imagenes_producto.csv`;
     const secondaryImages = selectedImages.filter(img => img !== primaryImage);
+    const descriptionToSave = selectedDescription || (csvData.find(row => row.archivo === primaryImage)?.descripcion || '');
 
     if (secondaryImages.length > 0) {
-      const rows = secondaryImages.map(secImg => `"${primaryImage}";"${secImg}"`).join('\n') + '\n';
+      const rows = secondaryImages.map(secImg => `"${primaryImage}";"${secImg}";"${descriptionToSave}"`).join('\n') + '\n';
       await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
     }
 
     setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
     setSelectedImages([primaryImage]);
+    if (primaryImage) {
+        setSelectedDescription(csvData.find(row => row.archivo === primaryImage)?.descripcion || '');
+    }
     setIsModalOpen(false);
     onCombinationSaved(); // Notificar al padre que se guardó una combinación
   };
@@ -111,23 +104,24 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
         <button onClick={() => setSelectedImages([])} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">
           Deseleccionar Todo
         </button>
-      </div>
-
-      {selectedImages.length > 0 && (
-        <div className="mb-4 p-4 bg-gray-800 rounded-lg">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
-            disabled={selectedImages.length < 2}
-          >
-            Combinar {selectedImages.length} imágenes
-          </button>
-          <p className="text-sm text-gray-400 mt-2">
-            Principal: {primaryImage || 'Ninguna seleccionada'}
-          </p>
-           {selectedImages.length < 2 && <p className="text-xs text-yellow-400 mt-1">Selecciona al menos 2 imágenes para combinar.</p>}
+        {selectedImages.length > 0 && (
+        <div className="flex items-center gap-4 p-1 bg-gray-800 rounded-lg">
+          <div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
+              disabled={selectedImages.length < 2}
+            >
+              Combinar {selectedImages.length} imágenes
+            </button>
+          </div>
+          <div className="flex flex-col">
+            <p className="text-sm text-gray-400">Principal: {primaryImage || 'Ninguna seleccionada'}</p>
+            {selectedImages.length < 2 && <p className="text-xs text-yellow-400 mt-1">Selecciona al menos 2 imágenes para combinar.</p>}
+          </div>
         </div>
       )}
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
         {imagesInDirectory.map(imageName => (
@@ -161,11 +155,29 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved }) => {
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
             <h3 className="text-lg font-bold mb-4">Confirmar Combinación</h3>
-            <p className="text-sm text-gray-300 mb-2">Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.</p>
-            <p className="text-sm text-gray-400 mb-4">Las siguientes imágenes se asociarán como secundarias:</p>
-            <ul className="list-disc list-inside bg-gray-700 p-3 rounded-md max-h-48 overflow-y-auto mb-6">
-              {selectedImages.filter(img => img !== primaryImage).map(img => <li key={img} className="text-sm">{img}</li>)}
-            </ul>
+            <p className="text-sm text-gray-300 mb-6">Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.</p>
+            <div className="mb-4">
+                {console.log("Rendering modal, csvData:", csvData)}
+                <label htmlFor="description-select" className="block text-sm font-medium text-gray-300 mb-2">
+                    Selecciona la descripción a usar para el producto principal:
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto bg-gray-700 p-2 rounded">
+                    {[...new Set(csvData
+                        .filter(row => selectedImages.includes(row.archivo) && row.descripcion)
+                        .map(row => row.descripcion)
+                    )].map((descripcion, index) => (
+                        <button
+                            key={`${descripcion}-${index}`}
+                            onClick={() => setSelectedDescription(descripcion)}
+                            className={`px-3 py-1 text-sm rounded ${
+                                selectedDescription === descripcion ? 'bg-blue-600 text-white' : 'bg-gray-600 hover:bg-gray-500'
+                            }`}
+                        >
+                            {descripcion}
+                        </button>
+                    ))}
+                </div>
+            </div>
             <div className="flex justify-end gap-4">
               <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded">
                 Cancelar
