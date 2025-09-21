@@ -265,7 +265,7 @@ const TiendaNubeProductManager = () => {
   const loadCsvData = async (filePath) => {
     if (window.electronAPI) {
       try {
-        const data = await window.electronAPI.readCsv(filePath);
+        const data = await window.electronAPI.readCsv(filePath, { delimiter: ';' });
         setCsvData(data);
         if (workingDirectory) {
           loadImagesFromData(data);
@@ -365,6 +365,11 @@ const TiendaNubeProductManager = () => {
     setSelectedCategories([]);
 
     if (row) {
+      console.log('Loading product data:', row);
+      console.log('precio:', row.precio);
+      console.log('descripcion:', row.descripcion);
+      console.log('categorias:', row.categorias);
+
       setProductName(row.descripcion || '');
       setProductPrice(row.precio?.replace('$', '').replace(',', '.') || '');
       setOriginalCategories(row.categorias || '');
@@ -790,13 +795,16 @@ const TiendaNubeProductManager = () => {
     }
   }, [csvData, workingDirectory, imageQueue]);
 
-  const handleCombinationSaved = () => {
-    // Forzar la recarga de la lista de imágenes en el componente de combinación
-    // Esto se logra cambiando el workingDirectory temporalmente para disparar el useEffect en CombineProducts.
-    // Es un poco un truco, pero efectivo para forzar la actualización.
-    const currentDir = workingDirectory;
-    setWorkingDirectory('');
-    setTimeout(() => setWorkingDirectory(currentDir), 50);
+  const handleCombinationSaved = async () => {
+    // This function is called when a combination is saved in CombineProducts
+    // 1. Reload the product images map to get the latest combinations
+    await loadProductImagesMap();
+
+    // 2. Reload the CSV data from the file to reflect the changes (removals, property updates)
+    await loadCsvData(csvPath);
+
+    // 3. Reload the image queue based on the updated CSV data
+    await loadImagesFromData(csvData);
   };
 
   const handleInpaintingImageUpdate = (img) => {

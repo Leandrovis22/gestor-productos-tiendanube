@@ -259,21 +259,16 @@ ipcMain.handle('update-product-in-resultado', async (event, resultadoPath, prima
         updated = true;
         
         // Update the relevant columns with the new property group
-        // Assuming: column 1 = name/description, column 2 = categories, and price is in a specific column
-        if (columns.length >= 3) {
+        // Column mapping for resultado.csv: 0: archivo, 1: descripcion, 2: precio, 3: categorias
+        if (columns.length >= 4) {
           if (propertyGroup.descripcion) {
             columns[1] = propertyGroup.descripcion; // Name/Description column
           }
-          if (propertyGroup.categorias) {
-            columns[2] = propertyGroup.categorias; // Categories column
-          }
           if (propertyGroup.precio) {
-            // Find the price column (usually around column 9-10)
-            const priceColumnIndex = 9; // Adjust based on your CSV structure
-            if (columns.length > priceColumnIndex) {
-              const cleanPrice = propertyGroup.precio.replace('$', '').replace(',', '.');
-              columns[priceColumnIndex] = cleanPrice;
-            }
+            columns[2] = propertyGroup.precio; // Price column
+          }
+          if (propertyGroup.categorias) {
+            columns[3] = propertyGroup.categorias; // Categories column
           }
         }
         

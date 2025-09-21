@@ -187,14 +187,14 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       await window.electronAPI.removeProductsFromResultado(resultadoPath, secondaryImages);
 
       // 4. Update local state
-      setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
+      setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img) && img !== primaryImage));
       setSelectedImages([]);
       setPrimaryImage(null);
-      setSelectedPropertyGroup(null);
+      setSelectedPropertyGroup(null); // This is correct
       setIsModalOpen(false);
 
       // 5. Notify parent component
-      onCombinationSaved();
+      await onCombinationSaved();
 
     } catch (error) {
       console.error('Error saving combination:', error);
