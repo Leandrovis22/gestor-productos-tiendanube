@@ -35,10 +35,29 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
     const loadImages = async () => {
       if (workingDirectory && window.electronAPI) {
         const allImages = await window.electronAPI.listFiles(workingDirectory, ['.jpg', '.jpeg', '.png', '.webp']);
+        
+        // Cargar imágenes ya procesadas o saltadas
         const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
         const saltadasImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/saltadas`, ['.jpg', '.jpeg', '.png', '.webp']));
         
-        setImagesInDirectory(allImages.filter(img => !processedImages.has(img) && !saltadasImages.has(img)));
+        // Cargar imágenes que ya son secundarias en una combinación
+        const secondaryImages = new Set();
+        const mapPath = `${workingDirectory}/imagenes_producto.csv`;
+        const mapExists = await window.electronAPI.fileExists(mapPath);
+        if (mapExists) {
+          const mappingData = await window.electronAPI.readCsv(mapPath);
+          mappingData.forEach(row => {
+            if (row.imagen_secundaria) {
+              secondaryImages.add(row.imagen_secundaria);
+            }
+          });
+        }
+
+        // Filtrar imágenes para no mostrar las ya procesadas, saltadas o combinadas como secundarias
+        const availableImages = allImages.filter(img => 
+          !processedImages.has(img) && !saltadasImages.has(img) && !secondaryImages.has(img)
+        );
+        setImagesInDirectory(availableImages);
       }
     };
 
