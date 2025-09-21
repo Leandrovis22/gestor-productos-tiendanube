@@ -332,6 +332,8 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
   }
 });
 
+
+
 ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
   try {
     await fs.appendFile(filePath, data, encoding);

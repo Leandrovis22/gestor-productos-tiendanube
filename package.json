@@ -4,7 +4,7 @@
   "description": "Automatizador para productos de TiendaNube",
   "main": "main.js",
   "scripts": {
-    "start": "concurrently \"npm run start:renderer\" \"wait-on http://localhost:5173 && electron .\"",
+    "start": "concurrently \"npm run start:renderer\" \"wait-on http://localhost:5173 && electronmon .\"",
     "start:renderer": "cd renderer && npm run dev",
     "build": "cd renderer && npm run build",
     "build:electron": "npm run build && electron-builder",
@@ -20,6 +20,7 @@
     "wait-on": "^7.0.0"
   },
   "devDependencies": {
-    "electron-builder": "^24.0.0"
+    "electron-builder": "^24.0.0",
+    "electronmon": "^2.0.3"
   }
 }

@@ -23,4 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // New inpainting methods
   processInpainting: (imagePath, maskDataUrl) => ipcRenderer.invoke('process-inpainting', imagePath, maskDataUrl),
   checkPythonDependencies: () => ipcRenderer.invoke('check-python-dependencies'),
+
+  // Functions for CombineProducts
+  updateProductInResultado: (resultadoPath, primaryImageName, propertyGroup) => ipcRenderer.invoke('update-product-in-resultado', resultadoPath, primaryImageName, propertyGroup),
+  removeProductsFromResultado: (resultadoPath, imagesToRemove) => ipcRenderer.invoke('remove-products-from-resultado', resultadoPath, imagesToRemove),
 });
