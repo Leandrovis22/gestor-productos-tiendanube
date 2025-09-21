@@ -108,7 +108,6 @@ ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   try {
     const exists = await fs.access(csvPath).then(() => true).catch(() => false);
     if (exists) {
-      console.log('El archivo salida.csv ya existe. No se sobrescribirá.');
       return { success: true, message: 'File already exists' };
     }
 
@@ -346,7 +345,7 @@ ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData)
         fit: 'fill', // Forzar dimensiones exactas
         kernel: sharp.kernel.lanczos3 // Mejor algoritmo de redimensionado
       })
-      .jpeg({ quality: 98, progressive: true }) // Calidad más alta
+      .jpeg({ quality: 95, progressive: true }) // Calidad web estándar
       .toBuffer();
     
     // Sobrescribir la imagen original con la editada
@@ -370,7 +369,6 @@ ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData)
 // Handler for processing inpainting with OpenCV Python script - MODIFIED
 ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
   try {
-    console.log('🎨 [MAIN] Iniciando proceso de inpainting para:', imagePath);
     
     // Create temporary directory for processing
     const tempDir = path.join(os.tmpdir(), 'inpainting_temp');
@@ -409,7 +407,6 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
     
     // La ruta del archivo de salida ahora viene del stdout del script de Python
     const successfulOutputPath = pythonResult.output.trim();
-    console.log(`🐍 [MAIN] Python script reported output at: ${successfulOutputPath}`);
 
     // Check if output file was created
     try {
@@ -468,8 +465,6 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       const pythonCmd = pythonCommands[currentCommandIndex];
       const args = [scriptPath, imagePath, maskPath, outputPath, radius.toString()];
       
-      console.log(`🐍 [MAIN] Ejecutando: ${pythonCmd} ${args.join(' ')}`);
-      
       const pythonProcess = spawn(pythonCmd, args, {
         stdio: ['ignore', 'pipe', 'pipe']
       });
@@ -487,15 +482,12 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       
       pythonProcess.on('close', (code) => {
         if (code === 0) {
-          console.log('✅ [MAIN] Python script ejecutado exitosamente');
+        
           resolve({
             success: true,
             output: stdout.trim() // Trim whitespace from output
           });
         } else {
-          console.log(`❌ [MAIN] Python command '${pythonCmd}' failed with code ${code}`);
-          console.log('STDOUT:', stdout);
-          console.log('STDERR:', stderr);
           
           // If this command failed, try the next one
           currentCommandIndex++;
@@ -504,7 +496,6 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       });
       
       pythonProcess.on('error', (error) => {
-        console.log(`❌ [MAIN] Error executing '${pythonCmd}':`, error.message);
         // If this command errored, try the next one
         currentCommandIndex++;
         tryNextCommand();

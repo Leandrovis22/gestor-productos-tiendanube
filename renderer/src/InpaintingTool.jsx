@@ -1,16 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Brush, RotateCcw, Undo } from 'lucide-react';
 import { displayImage as displayImageHelper } from './helpers';
 
-const InpaintingTool = ({ 
+const InpaintingTool = forwardRef(({ 
   mainCanvasRef, 
   currentImage, 
   currentImagePath,
   onImageUpdateFromInpaint,
   zoomFactor, 
   displayOffset, 
-  displaySize 
-}) => {
+  displaySize
+}, ref) => {
   const [isInpaintMode, setIsInpaintMode] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState(26);
@@ -23,33 +23,29 @@ const InpaintingTool = ({
   const drawTimeoutRef = useRef(null);
   const isInpaintingInProgressRef = useRef(false);
 
-  // LIMPIEZA COMPLETA cuando cambia la imagen
-  useEffect(() => {
-    console.log('🔄 [INPAINT] Cambiando imagen, limpieza completa:', currentImagePath);
-    
-    // Limpiar todos los estados
+  const resetState = () => {
     setMaskPaths([]);
     setHasBackedUpOriginal(false);
     setOriginalImageBackup(null);
     setIsDrawing(false);
     lastPointRef.current = null;
     isInpaintingInProgressRef.current = false;
-    
-    // Limpiar timeout pendiente
     if (drawTimeoutRef.current) {
       clearTimeout(drawTimeoutRef.current);
       drawTimeoutRef.current = null;
     }
-    
-    // Salir de modo inpaint para evitar confusión
     setIsInpaintMode(false);
-    
-  }, [currentImagePath]);
+  };
+
+  // Exponer la función de reinicio al componente padre
+  useImperativeHandle(ref, () => ({
+    resetState
+  }));
+
 
   // Backup de imagen original al entrar en modo edición
   useEffect(() => {
     if (isInpaintMode && currentImage && !hasBackedUpOriginal) {
-      console.log('💾 [INPAINT] Haciendo backup de imagen original');
       setOriginalImageBackup(currentImage);
       setHasBackedUpOriginal(true);
     }
@@ -84,6 +80,7 @@ const InpaintingTool = ({
     // Start a new path
     const newPath = [coords];
     setMaskPaths(prev => [...prev, newPath]);
+    console.log(`[INPAINT_DEBUG] startDrawing: Nuevo trazo añadido. Total de trazos: ${maskPaths.length + 1}`);
     
     // Clear any pending auto-apply
     if (drawTimeoutRef.current) {
@@ -127,6 +124,7 @@ const InpaintingTool = ({
     // Esto evita problemas de estado obsoleto (stale state) durante eventos rápidos de mousemove.
     if (maskPaths.length > 0) {
       maskPaths[maskPaths.length - 1].push(coords);
+      // console.log(`[INPAINT_DEBUG] draw: Añadiendo punto. Puntos en el último trazo: ${maskPaths[maskPaths.length - 1].length}`); // Log muy verboso, descomentar si es necesario
     }
 
     lastPointRef.current = coords;
@@ -140,6 +138,7 @@ const InpaintingTool = ({
     
     // Auto-apply inpainting after a short delay
     if (maskPaths.length > 0) {
+      console.log(`[INPAINT_DEBUG] stopDrawing: Se va a procesar con ${maskPaths.length} trazos.`);
       drawTimeoutRef.current = setTimeout(() => {
         processInpainting();
       }, 300);
@@ -147,7 +146,6 @@ const InpaintingTool = ({
   };
 
   const clearMask = () => {
-    console.log('🧹 [INPAINT] Limpiando máscaras');
     setMaskPaths([]);
     
     // Redibujar imagen limpia
@@ -164,7 +162,6 @@ const InpaintingTool = ({
 
   const undoChanges = () => {
     if (originalImageBackup && hasBackedUpOriginal && !isInpaintingInProgressRef.current) {
-      console.log('⏪ [INPAINT] Deshaciendo todos los cambios');
       
       // CRUCIAL: Limpiar completamente PRIMERO
       setMaskPaths([]);
@@ -180,6 +177,9 @@ const InpaintingTool = ({
       // Restaurar imagen original - IMPORTANTE: usar una función especial que NO dispare guardado
       // Notificamos al padre para que actualice su estado y se redibuje todo correctamente.
       onImageUpdateFromInpaint(originalImageBackup);
+
+      // Forzar el redibujado inmediato del canvas con la imagen original restaurada.
+      displayImageHelper(originalImageBackup, mainCanvasRef.current, zoomFactor);
     }
   };
 
@@ -188,11 +188,34 @@ const InpaintingTool = ({
       return;
     }
 
-    console.log('🎨 [INPAINT] Iniciando inpainting...');
+    console.log(`[INPAINT_DEBUG] processInpainting: Iniciando proceso con ${maskPaths.length} trazos.`);
     setIsProcessing(true);
     isInpaintingInProgressRef.current = true;
 
     try {
+      // --- INICIO DE LA CORRECCIÓN ---
+      // Volver a dibujar todos los trazos en el lienzo principal antes de procesar.
+      // Esto es crucial porque otras actualizaciones de estado pueden haber limpiado el lienzo.
+      const mainCtx = mainCanvasRef.current.getContext('2d');
+      mainCtx.save();
+      mainCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      mainCtx.lineWidth = brushSize;
+      mainCtx.lineCap = 'round';
+      mainCtx.lineJoin = 'round';
+
+      maskPaths.forEach(path => {
+        if (path.length < 2) return;
+        mainCtx.beginPath();
+        mainCtx.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) {
+          mainCtx.lineTo(path[i].x, path[i].y);
+        }
+        mainCtx.stroke();
+      });
+
+      mainCtx.restore();
+      // --- FIN DE LA CORRECCIÓN ---
+
       // Create a temporary mask image with original image dimensions
       const tempMaskCanvas = document.createElement('canvas');
       
@@ -245,17 +268,14 @@ const InpaintingTool = ({
       const maskDataUrl = tempMaskCanvas.toDataURL('image/png');
       
       // Call the inpainting function
+      console.log('[INPAINT_DEBUG] processInpainting: Llamando a electronAPI.processInpainting...');
       const result = await window.electronAPI.processInpainting(currentImagePath, maskDataUrl);
       
       if (result.success) {
-        console.log('✅ [INPAINT] Inpainting completado, recargando imagen...');
-        setMaskPaths([]);
-
         // La imagen procesada ahora viene como base64
         const img = new Image();
         img.onload = () => {
-          console.log('🖼️ [INPAINT] Nueva imagen cargada en memoria exitosamente');
-          // 1. Notificar al componente padre para que actualice la imagen en el estado.
+           // 1. Notificar al componente padre para que actualice la imagen en el estado.
           //    Esto asegura que el resto de la app (zoom, etc.) use la imagen correcta.
           onImageUpdateFromInpaint(img);
           // 2. Forzar el redibujado inmediato del canvas con la nueva imagen.
@@ -267,9 +287,7 @@ const InpaintingTool = ({
           alert('Error al cargar la imagen procesada.');
         };
 
-        // DEBUG: Log the first 100 chars of the base64 string to check its format
-        console.log('[INPAINT] Received image data:', result.imageData.substring(0, 100) + '...');
-
+        console.log('[INPAINT_DEBUG] processInpainting: Inpainting exitoso. Actualizando imagen.');
         img.src = result.imageData;
       } else {
         throw new Error(result.error || 'Error desconocido en inpainting');
@@ -388,6 +406,6 @@ const InpaintingTool = ({
       </div>
     </div>
   );
-};
+});
 
 export default InpaintingTool;

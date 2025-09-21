@@ -69,6 +69,7 @@ const TiendaNubeProductManager = () => {
   const imageRef = useRef(null);
   const canvasRef = useRef(null);
   const isInpaintingUpdateRef = useRef(false);
+  const inpaintingToolRef = useRef(null);
 
   const predefinedColors = [
     "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste",
@@ -445,6 +446,11 @@ const TiendaNubeProductManager = () => {
     if (currentImage && currentImagePath) {
       await saveImageFromState(currentImage, currentImagePath);
     }
+    
+    // Reiniciar el estado de inpainting
+    if (inpaintingToolRef.current) {
+      inpaintingToolRef.current.resetState();
+    }
 
     await saveCurrentProduct();
 
@@ -489,6 +495,11 @@ const TiendaNubeProductManager = () => {
     if (alreadySaved) {
       alert('Este producto ya ha sido guardado y no puede ser saltado.');
       return;
+    }
+
+    // Reiniciar el estado de inpainting
+    if (inpaintingToolRef.current) {
+      inpaintingToolRef.current.resetState();
     }
 
     try {
@@ -663,6 +674,10 @@ const TiendaNubeProductManager = () => {
     });
   };
 
+  const handleInpaintComplete = () => {
+    // No es necesario hacer nada aquí por ahora, pero la prop está lista si se necesita.
+  };
+
   // Nueva función para guardar la imagen desde el estado, no desde el canvas
   const saveImageFromState = async (imageObject, imagePath) => {
     if (!window.electronAPI || !imageObject || !imagePath) return;
@@ -722,7 +737,10 @@ const TiendaNubeProductManager = () => {
 
   useEffect(() => {
     if (currentImage) {
-      displayImage(currentImage);
+      // Evitar redibujar si la actualización viene de inpainting,
+      // ya que InpaintingTool se encarga de su propio redibujado.
+      // Esto previene que el canvas se limpie inesperadamente.
+      if (!isInpaintingUpdateRef.current) displayImage(currentImage);
     }
   }, [zoomFactor, currentImage]);
 
@@ -780,7 +798,10 @@ const TiendaNubeProductManager = () => {
   const handleInpaintingImageUpdate = (img) => {
     isInpaintingUpdateRef.current = true; // marcar que la actualización viene de inpainting
     setCurrentImage(img);
-    setTimeout(() => displayImage(img), 50);
+    // InpaintingTool ya se encarga de redibujar. Forzar otro redibujado aquí
+    // puede causar parpadeos o limpiar el canvas.
+    // La siguiente línea es ahora manejada por el propio InpaintingTool.
+    // setTimeout(() => displayImage(img), 50); 
     setTimeout(() => { isInpaintingUpdateRef.current = false; }, 100);
   };
 
@@ -881,6 +902,7 @@ const TiendaNubeProductManager = () => {
             </div>
 
             <InpaintingTool
+              ref={inpaintingToolRef}
               mainCanvasRef={canvasRef}
               currentImage={currentImage}
               currentImagePath={currentImagePath}
