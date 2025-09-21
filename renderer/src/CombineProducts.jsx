@@ -153,7 +153,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-[57rem]">
             <h3 className="text-lg font-bold mb-4">Confirmar Combinación</h3>
             <p className="text-sm text-gray-300 mb-6">Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.</p>
             <div className="mb-4">
@@ -161,20 +161,24 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                 <label htmlFor="description-select" className="block text-sm font-medium text-gray-300 mb-2">
                     Selecciona la descripción a usar para el producto principal:
                 </label>
-                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto bg-gray-700 p-2 rounded">
-                    {[...new Set(csvData
+                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto bg-gray-700 p-2 rounded">
+                    {csvData
                         .filter(row => selectedImages.includes(row.archivo) && row.descripcion)
-                        .map(row => row.descripcion)
-                    )].map((descripcion, index) => (
-                        <button
-                            key={`${descripcion}-${index}`}
-                            onClick={() => setSelectedDescription(descripcion)}
-                            className={`px-3 py-1 text-sm rounded ${
-                                selectedDescription === descripcion ? 'bg-blue-600 text-white' : 'bg-gray-600 hover:bg-gray-500'
+                        .map((row, index) => (
+                        <div
+                            key={`${row.archivo}-${index}`}
+                            onClick={() => setSelectedDescription(row.descripcion)}
+                            className={`flex items-center gap-3 p-2 rounded cursor-pointer ${
+                                selectedDescription === row.descripcion ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'
                             }`}
                         >
-                            {descripcion}
-                        </button>
+                            <InlineLocalImage
+                                path={`${workingDirectory}/${row.archivo}`}
+                                alt={row.descripcion}
+                                className="w-20 h-20 object-cover rounded-sm flex-shrink-0"
+                            />
+                            <span className="text-sm">{row.descripcion}</span>
+                        </div>
                     ))}
                 </div>
             </div>
