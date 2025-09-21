@@ -71,7 +71,7 @@ const TiendaNubeProductManager = () => {
 
   // Estados mejorados para inpainting
   const [isInpaintingMode, setIsInpaintingMode] = useState(false);
-  const [brushSize, setBrushSize] = useState(25);
+  const [brushSize, setBrushSize] = useState(50);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -137,7 +137,7 @@ const TiendaNubeProductManager = () => {
     const initialIterations = 15;
     for (let iter = 0; iter < initialIterations; iter++) {
       const newData = new Uint8ClampedArray(data);
-      
+
       for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
           const idx = y * width + x;
@@ -149,7 +149,7 @@ const TiendaNubeProductManager = () => {
 
             // Usar un kernel adaptativo más grande para mejor propagación
             const kernelRadius = Math.min(8, Math.max(3, iter + 2));
-            
+
             for (let dy = -kernelRadius; dy <= kernelRadius; dy++) {
               for (let dx = -kernelRadius; dx <= kernelRadius; dx++) {
                 if (dx === 0 && dy === 0) continue;
@@ -157,7 +157,7 @@ const TiendaNubeProductManager = () => {
                 const nx = x + dx;
                 const ny = y + dy;
                 const distance = Math.sqrt(dx * dx + dy * dy);
-                
+
                 if (nx >= 0 && nx < width && ny >= 0 && ny < height && distance <= kernelRadius) {
                   const neighborIdx = ny * width + nx;
                   const neighborPixelIdx = neighborIdx * 4;
@@ -166,7 +166,7 @@ const TiendaNubeProductManager = () => {
                   if (mask[neighborIdx] < 128 || (iter > 3 && data[neighborPixelIdx] !== 0)) {
                     // Peso basado en distancia inversa con falloff gaussiano
                     const weight = Math.exp(-(distance * distance) / (kernelRadius * kernelRadius * 0.5));
-                    
+
                     r += data[neighborPixelIdx] * weight;
                     g += data[neighborPixelIdx + 1] * weight;
                     b += data[neighborPixelIdx + 2] * weight;
@@ -186,7 +186,7 @@ const TiendaNubeProductManager = () => {
           }
         }
       }
-      
+
       data.set(newData);
     }
 
@@ -194,7 +194,7 @@ const TiendaNubeProductManager = () => {
     const smoothingIterations = 8;
     for (let iter = 0; iter < smoothingIterations; iter++) {
       const newData = new Uint8ClampedArray(data);
-      
+
       for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
           const idx = y * width + x;
@@ -203,23 +203,23 @@ const TiendaNubeProductManager = () => {
           if (mask[idx] > 128) {
             let r = 0, g = 0, b = 0;
             let sampleCount = 0;
-            
+
             // Usar un kernel más pequeño para suavizado
             const smoothRadius = 2;
-            
+
             for (let dy = -smoothRadius; dy <= smoothRadius; dy++) {
               for (let dx = -smoothRadius; dx <= smoothRadius; dx++) {
                 const nx = x + dx;
                 const ny = y + dy;
-                
+
                 if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                   const neighborPixelIdx = (ny * width + nx) * 4;
                   const distance = Math.sqrt(dx * dx + dy * dy);
-                  
+
                   if (distance <= smoothRadius) {
                     // Peso gaussiano para suavizado natural
                     const weight = Math.exp(-(distance * distance) / (smoothRadius * smoothRadius * 0.3));
-                    
+
                     r += data[neighborPixelIdx] * weight;
                     g += data[neighborPixelIdx + 1] * weight;
                     b += data[neighborPixelIdx + 2] * weight;
@@ -228,7 +228,7 @@ const TiendaNubeProductManager = () => {
                 }
               }
             }
-            
+
             if (sampleCount > 0) {
               // Mezclar con el resultado anterior para transición suave
               const blendFactor = 0.7;
@@ -238,7 +238,7 @@ const TiendaNubeProductManager = () => {
               const newR = Math.round(r / sampleCount);
               const newG = Math.round(g / sampleCount);
               const newB = Math.round(b / sampleCount);
-              
+
               newData[pixelIdx] = Math.round(currentR * (1 - blendFactor) + newR * blendFactor);
               newData[pixelIdx + 1] = Math.round(currentG * (1 - blendFactor) + newG * blendFactor);
               newData[pixelIdx + 2] = Math.round(currentB * (1 - blendFactor) + newB * blendFactor);
@@ -246,7 +246,7 @@ const TiendaNubeProductManager = () => {
           }
         }
       }
-      
+
       data.set(newData);
     }
 
@@ -254,7 +254,7 @@ const TiendaNubeProductManager = () => {
     const edgeIterations = 5;
     for (let iter = 0; iter < edgeIterations; iter++) {
       const newData = new Uint8ClampedArray(data);
-      
+
       for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
           const idx = y * width + x;
@@ -263,13 +263,13 @@ const TiendaNubeProductManager = () => {
           // Solo procesar píxeles en el borde de la máscara
           if (mask[idx] > 128) {
             let hasValidNeighbor = false;
-            
+
             // Verificar si está en el borde
             for (let dy = -1; dy <= 1; dy++) {
               for (let dx = -1; dx <= 1; dx++) {
                 const nx = x + dx;
                 const ny = y + dy;
-                
+
                 if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                   const neighborIdx = ny * width + nx;
                   if (mask[neighborIdx] < 128) {
@@ -280,23 +280,23 @@ const TiendaNubeProductManager = () => {
               }
               if (hasValidNeighbor) break;
             }
-            
+
             if (hasValidNeighbor) {
               // Aplicar filtro bilateral para preservar bordes
               let r = 0, g = 0, b = 0, totalWeight = 0;
-              
+
               for (let dy = -2; dy <= 2; dy++) {
                 for (let dx = -2; dx <= 2; dx++) {
                   const nx = x + dx;
                   const ny = y + dy;
-                  
+
                   if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                     const neighborPixelIdx = (ny * width + nx) * 4;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    
+
                     if (distance <= 2) {
                       const spatialWeight = Math.exp(-(distance * distance) / (2 * 0.8 * 0.8));
-                      
+
                       r += data[neighborPixelIdx] * spatialWeight;
                       g += data[neighborPixelIdx + 1] * spatialWeight;
                       b += data[neighborPixelIdx + 2] * spatialWeight;
@@ -305,7 +305,7 @@ const TiendaNubeProductManager = () => {
                   }
                 }
               }
-              
+
               if (totalWeight > 0) {
                 newData[pixelIdx] = Math.round(r / totalWeight);
                 newData[pixelIdx + 1] = Math.round(g / totalWeight);
@@ -315,7 +315,7 @@ const TiendaNubeProductManager = () => {
           }
         }
       }
-      
+
       data.set(newData);
     }
 
@@ -616,52 +616,6 @@ const TiendaNubeProductManager = () => {
     }
   };
 
-  // Función displayImage corregida para mantener dimensiones originales
-  const displayImage = (img) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !img) {
-      console.log('Canvas or image not available for display');
-      return;
-    }
-
-    const ctx = canvas.getContext('2d');
-    const canvasRect = canvas.getBoundingClientRect();
-    const canvasWidth = canvasRect.width;
-    const canvasHeight = canvasRect.height;
-
-    // Configurar el canvas con las dimensiones de la imagen original
-    // Esto es crítico para mantener la calidad
-    canvas.width = img.width;
-    canvas.height = img.height;
-    
-    // Calcular escala para mostrar la imagen completa
-    const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height) * zoomFactor;
-    
-    // Limpiar y configurar el canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    
-    // Dibujar la imagen a tamaño completo (sin escalado en el canvas)
-    ctx.drawImage(img, 0, 0, img.width, img.height);
-    
-    // Aplicar el escalado visual via CSS para la visualización
-    const scaledWidth = img.width * scale;
-    const scaledHeight = img.height * scale;
-    const offsetX = (canvasWidth - scaledWidth) / 2;
-    const offsetY = (canvasHeight - scaledHeight) / 2;
-    
-    canvas.style.width = `${scaledWidth}px`;
-    canvas.style.height = `${scaledHeight}px`;
-    canvas.style.marginLeft = `${offsetX}px`;
-    canvas.style.marginTop = `${offsetY}px`;
-    
-    setDisplayOffset({ x: offsetX, y: offsetY });
-    setDisplaySize({ width: scaledWidth, height: scaledHeight });
-
-    console.log('Image displayed successfully at original resolution');
-  };
-
   const loadProductData = (filename, data = csvData) => {
     const row = data.find(r => r.archivo === filename);
 
@@ -707,8 +661,8 @@ const TiendaNubeProductManager = () => {
               <div
                 key={imgName}
                 className={`relative cursor-pointer border-2 rounded transition-all flex-shrink-0 ${isCurrentlyDisplayed
-                    ? 'border-blue-500 shadow-lg bg-blue-900/20'
-                    : 'border-transparent hover:border-gray-500'
+                  ? 'border-blue-500 shadow-lg bg-blue-900/20'
+                  : 'border-transparent hover:border-gray-500'
                   }`}
                 onClick={() => switchToProductImage(imgName)}
                 title={`${imgName} ${isCurrentlyDisplayed ? '(mostrando)' : ''}`}
@@ -973,181 +927,350 @@ const TiendaNubeProductManager = () => {
     });
   };
 
-  // Función de dibujo corregida para coordenadas precisas
-  const drawMask = (e) => {
+
+// Fixed displayImage function - eliminates black borders and maintains proper scaling
+const displayImage = (img) => {
+  const canvas = canvasRef.current;
+  const overlay = overlayCanvasRef.current;
+  const mask = maskCanvasRef.current;
+  if (!canvas || !img) return;
+
+  const ctx = canvas.getContext('2d');
+
+  // Get the container size (CSS pixels)
+  const rect = canvas.getBoundingClientRect();
+  const containerWidth = Math.max(1, Math.floor(rect.width));
+  const containerHeight = Math.max(1, Math.floor(rect.height));
+
+  // Calculate scale to fit image within container (contain mode)
+  const scaleX = containerWidth / img.width;
+  const scaleY = containerHeight / img.height;
+  const scale = Math.min(scaleX, scaleY) * zoomFactor;
+
+  // Calculate actual display dimensions
+  const displayWidth = img.width * scale;
+  const displayHeight = img.height * scale;
+
+  // Center the image
+  const offsetX = (containerWidth - displayWidth) / 2;
+  const offsetY = (containerHeight - displayHeight) / 2;
+
+  // Store display info for coordinate mapping
+  setDisplaySize({ width: displayWidth, height: displayHeight });
+  setDisplayOffset({ x: offsetX, y: offsetY });
+
+  // Set canvas dimensions to match container
+  canvas.width = containerWidth;
+  canvas.height = containerHeight;
+  canvas.style.width = `${containerWidth}px`;
+  canvas.style.height = `${containerHeight}px`;
+
+  // Sync overlay and mask canvas dimensions
+  if (overlay) {
+    overlay.width = containerWidth;
+    overlay.height = containerHeight;
+    overlay.style.width = `${containerWidth}px`;
+    overlay.style.height = `${containerHeight}px`;
+  }
+  if (mask) {
+    mask.width = containerWidth;
+    mask.height = containerHeight;
+    mask.style.width = `${containerWidth}px`;
+    mask.style.height = `${containerHeight}px`;
+  }
+
+  // Clear and fill with transparent background (no black borders)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw image centered and scaled
+  ctx.drawImage(img, offsetX, offsetY, displayWidth, displayHeight);
+};
+
+// Fixed coordinate mapping function
+const getImageCoordinates = (clientX, clientY) => {
+  const canvas = canvasRef.current;
+  if (!canvas || !currentImage) return null;
+
+  const rect = canvas.getBoundingClientRect();
+  
+  // Get mouse position relative to canvas
+  const mouseX = clientX - rect.left;
+  const mouseY = clientY - rect.top;
+
+  // Check if mouse is within the actual image bounds
+  if (mouseX < displayOffset.x || mouseX > displayOffset.x + displaySize.width ||
+      mouseY < displayOffset.y || mouseY > displayOffset.y + displaySize.height) {
+    return null; // Outside image bounds
+  }
+
+  // Convert to image coordinates
+  const scale = Math.min(rect.width / currentImage.width, rect.height / currentImage.height) * zoomFactor;
+  const imageX = (mouseX - displayOffset.x) / scale;
+  const imageY = (mouseY - displayOffset.y) / scale;
+
+  // Clamp to image bounds
+  const clampedX = Math.max(0, Math.min(currentImage.width - 1, imageX));
+  const clampedY = Math.max(0, Math.min(currentImage.height - 1, imageY));
+
+  return {
+    imageX: clampedX,
+    imageY: clampedY,
+    canvasX: mouseX,
+    canvasY: mouseY
+  };
+};
+
+// Fixed drawMask function with proper coordinate mapping
+const drawMask = (e) => {
+  const overlay = overlayCanvasRef.current;
+  const mask = maskCanvasRef.current;
+  const mainCanvas = canvasRef.current;
+  if (!overlay || !mask || !maskAccumulated || !mainCanvas || !currentImage) return;
+
+  // Get precise coordinates
+  const coords = getImageCoordinates(e.clientX, e.clientY);
+  if (!coords) return; // Don't draw outside image bounds
+
+  const { imageX, imageY, canvasX, canvasY } = coords;
+
+  // Draw visual feedback on overlay (in canvas coordinates)
+  const overlayCtx = overlay.getContext('2d');
+  overlayCtx.globalCompositeOperation = 'source-over';
+  overlayCtx.fillStyle = 'rgba(255, 50, 50, 0.5)';
+  overlayCtx.beginPath();
+  
+  // Scale brush size according to current zoom
+  const scale = Math.min(mainCanvas.width / currentImage.width, mainCanvas.height / currentImage.height) * zoomFactor;
+  const scaledBrushSize = brushSize * scale;
+  
+  overlayCtx.arc(canvasX, canvasY, scaledBrushSize, 0, 2 * Math.PI);
+  overlayCtx.fill();
+
+  // Update mask in image coordinates
+  const maskCtx = mask.getContext('2d');
+  
+  // Create an image-sized mask if not exists
+  if (mask.width !== currentImage.width || mask.height !== currentImage.height) {
+    mask.width = currentImage.width;
+    mask.height = currentImage.height;
+    
+    // Initialize with current accumulated mask or clear
+    if (maskAccumulated && maskAccumulated.width === currentImage.width && maskAccumulated.height === currentImage.height) {
+      maskCtx.putImageData(maskAccumulated, 0, 0);
+    } else {
+      maskCtx.clearRect(0, 0, mask.width, mask.height);
+      setMaskAccumulated(maskCtx.getImageData(0, 0, mask.width, mask.height));
+    }
+  }
+
+  // Draw on mask in image coordinates
+  maskCtx.fillStyle = 'rgba(255, 255, 255, 255)';
+  maskCtx.beginPath();
+  maskCtx.arc(imageX, imageY, brushSize / 2, 0, 2 * Math.PI);
+  maskCtx.fill();
+
+  // Update accumulated mask
+  const newMaskData = maskCtx.getImageData(0, 0, mask.width, mask.height);
+  setMaskAccumulated(newMaskData);
+};
+
+// Fixed inpainting setup
+useEffect(() => {
+  if (isInpaintingMode && canvasRef.current && currentImage) {
+    const mainCanvas = canvasRef.current;
     const overlay = overlayCanvasRef.current;
     const mask = maskCanvasRef.current;
-    const mainCanvas = canvasRef.current;
-    if (!overlay || !mask || !maskAccumulated || !mainCanvas) return;
 
-    // Obtener coordenadas relativas al canvas principal
-    const rect = mainCanvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (mainCanvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (mainCanvas.height / rect.height);
-
-    // Configurar los canvas overlay y mask con las mismas dimensiones que el principal
-    if (overlay.width !== mainCanvas.width || overlay.height !== mainCanvas.height) {
+    if (overlay && mask) {
+      // Sync overlay with main canvas
       overlay.width = mainCanvas.width;
       overlay.height = mainCanvas.height;
-      overlay.style.width = rect.width + 'px';
-      overlay.style.height = rect.height + 'px';
+      overlay.style.width = mainCanvas.style.width;
+      overlay.style.height = mainCanvas.style.height;
+
+      // Set mask to image dimensions
+      mask.width = currentImage.width;
+      mask.height = currentImage.height;
+
+      // Clear overlay
+      const overlayCtx = overlay.getContext('2d');
+      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+      // Initialize or clear mask
+      const maskCtx = mask.getContext('2d');
+      maskCtx.clearRect(0, 0, mask.width, mask.height);
+      setMaskAccumulated(maskCtx.getImageData(0, 0, mask.width, mask.height));
+
+      // Store original image data at image resolution
+      if (!originalImageData) {
+        // Create a canvas at image resolution to store original
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = currentImage.width;
+        tempCanvas.height = currentImage.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(currentImage, 0, 0);
+        
+        const originalData = tempCtx.getImageData(0, 0, currentImage.width, currentImage.height);
+        setOriginalImageData(originalData);
+        setCurrentImageData(new ImageData(
+          new Uint8ClampedArray(originalData.data),
+          originalData.width,
+          originalData.height
+        ));
+      }
     }
+  }
+}, [isInpaintingMode, currentImage]);
+
+// Fixed inpainting processing
+const processInpainting = async () => {
+  if (!canvasRef.current || !maskAccumulated || !currentImageData || !currentImage) return;
+
+  setIsProcessing(true);
+
+  try {
+    // Perform inpainting at image resolution
+    const result = performInpainting(currentImageData, maskAccumulated);
+
+    // Update current image data
+    setCurrentImageData(new ImageData(
+      new Uint8ClampedArray(result.data),
+      result.width,
+      result.height
+    ));
+
+    // Create temporary image from result to display
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = result.width;
+    tempCanvas.height = result.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.putImageData(result, 0, 0);
+
+    // Create new image object
+    const img = new Image();
+    img.onload = () => {
+      setCurrentImage(img);
+      setHasUnsavedChanges(true);
+      setTimeout(() => displayImage(img), 50);
+    };
+    img.src = tempCanvas.toDataURL();
+
+    // Clear visual overlay but keep mask for additional edits
+    clearVisualOverlay();
+
+  } catch (error) {
+    console.error('Error en inpainting:', error);
+    alert('Error procesando el inpainting');
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+// Fixed save function that preserves original dimensions
+const saveInpaintingChanges = async () => {
+  if (!hasUnsavedChanges || !currentImageData || !currentImagePath) return;
+
+  try {
+    // Create canvas at original image dimensions
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = currentImageData.width;
+    tempCanvas.height = currentImageData.height;
+    const tempCtx = tempCanvas.getContext('2d');
     
-    if (mask.width !== mainCanvas.width || mask.height !== mainCanvas.height) {
-      mask.width = mainCanvas.width;
-      mask.height = mainCanvas.height;
-    }
+    // Draw the edited image data
+    tempCtx.putImageData(currentImageData, 0, 0);
 
-    // Dibujar en overlay (feedback visual)
-    const overlayCtx = overlay.getContext('2d');
-    overlayCtx.globalCompositeOperation = 'source-over';
-    overlayCtx.fillStyle = 'rgba(255, 50, 50, 0.5)';
-    overlayCtx.beginPath();
-    overlayCtx.arc(x, y, brushSize, 0, 2 * Math.PI);
-    overlayCtx.fill();
+    // Export at high quality
+    const editedImageDataUrl = tempCanvas.toDataURL('image/jpeg', 0.98);
+    const result = await window.electronAPI.saveEditedImage(currentImagePath, editedImageDataUrl);
 
-    // Actualizar máscara acumulada
-    const maskCtx = mask.getContext('2d');
-    maskCtx.fillStyle = 'rgba(255, 255, 255, 255)';
-    maskCtx.beginPath();
-    maskCtx.arc(x, y, brushSize, 0, 2 * Math.PI);
-    maskCtx.fill();
+    if (result.success) {
+      setHasUnsavedChanges(false);
 
-    // Actualizar el estado de máscara acumulada
-    const newMaskData = maskCtx.getImageData(0, 0, mask.width, mask.height);
-    setMaskAccumulated(newMaskData);
-  };
-
-  // Procesamiento mejorado que conserva cambios anteriores
-  const processInpainting = async () => {
-    if (!canvasRef.current || !maskAccumulated || !currentImageData) return;
-
-    setIsProcessing(true);
-
-    try {
-      // Usar la imagen actual (con cambios previos) en lugar de la original
-      const result = performInpainting(currentImageData, maskAccumulated);
-
-      // Aplicar resultado al canvas
-      const mainCanvas = canvasRef.current;
-      const mainCtx = mainCanvas.getContext('2d');
-      mainCtx.putImageData(result, 0, 0);
-
-      // Actualizar la imagen actual con los nuevos cambios
-      setCurrentImageData(new ImageData(
-        new Uint8ClampedArray(result.data),
-        result.width,
-        result.height
+      // Update original data
+      setOriginalImageData(new ImageData(
+        new Uint8ClampedArray(currentImageData.data),
+        currentImageData.width,
+        currentImageData.height
       ));
 
-      setHasUnsavedChanges(true);
-      
-      // Limpiar solo la visualización, mantener la máscara para futuras ediciones
-      clearVisualOverlay();
-
-    } catch (error) {
-      console.error('Error en inpainting:', error);
-      alert('Error procesando el inpainting');
-    } finally {
-      setIsProcessing(false);
+      clearAllMasks();
+      console.log('Imagen guardada exitosamente:', result.backupPath);
+    } else {
+      alert('Error al guardar: ' + result.error);
     }
-  };
+  } catch (error) {
+    console.error('Error guardando:', error);
+    alert('Error al guardar la imagen');
+  }
+};
 
-  // Nueva función para limpiar solo la visualización
-  const clearVisualOverlay = () => {
-    if (overlayCanvasRef.current) {
-      const ctx = overlayCanvasRef.current.getContext('2d');
-      ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
-    }
-  };
+// Fixed clear functions
+const clearVisualOverlay = () => {
+  if (overlayCanvasRef.current) {
+    const ctx = overlayCanvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+  }
+};
 
-  // Función mejorada para limpiar todo
-  const clearAllMasks = () => {
-    clearVisualOverlay();
-    
-    if (maskCanvasRef.current) {
-      const ctx = maskCanvasRef.current.getContext('2d');
-      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
-      setMaskAccumulated(ctx.getImageData(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height));
-    }
-  };
+const clearAllMasks = () => {
+  clearVisualOverlay();
 
-  // Función de deshacer mejorada
-  const undoInpainting = () => {
-    if (!originalImageData || !canvasRef.current) return;
+  if (maskCanvasRef.current && currentImage) {
+    const ctx = maskCanvasRef.current.getContext('2d');
+    ctx.canvas.width = currentImage.width;
+    ctx.canvas.height = currentImage.height;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    setMaskAccumulated(ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height));
+  }
+};
 
-    const mainCanvas = canvasRef.current;
-    const ctx = mainCanvas.getContext('2d');
-    ctx.putImageData(originalImageData, 0, 0);
-    
-    // Resetear al estado original
+// Fixed undo function
+const undoInpainting = () => {
+  if (!originalImageData || !currentImage) return;
+
+  // Recreate image from original data
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = originalImageData.width;
+  tempCanvas.height = originalImageData.height;
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCtx.putImageData(originalImageData, 0, 0);
+
+  const img = new Image();
+  img.onload = () => {
+    setCurrentImage(img);
     setCurrentImageData(new ImageData(
       new Uint8ClampedArray(originalImageData.data),
       originalImageData.width,
       originalImageData.height
     ));
-    
     setHasUnsavedChanges(false);
     clearAllMasks();
+    setTimeout(() => displayImage(img), 50);
   };
+  img.src = tempCanvas.toDataURL();
+};
 
-  // Función mejorada para guardar cambios conservando dimensiones
-  const saveInpaintingChanges = async () => {
-    if (!hasUnsavedChanges || !canvasRef.current || !currentImagePath) return;
+// Updated mouse event handlers
+const handleMouseDown = (e) => {
+  if (!isInpaintingMode) return;
+  e.preventDefault();
+  setIsDrawing(true);
+  drawMask(e);
+};
 
-    try {
-      // Crear un canvas temporal con las dimensiones exactas de la imagen original
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      
-      // Obtener las dimensiones originales de la imagen
-      tempCanvas.width = currentImage.width;
-      tempCanvas.height = currentImage.height;
-      
-      // Dibujar la imagen editada en el canvas temporal sin ningún escalado
-      const mainCanvas = canvasRef.current;
-      const imageDataFromCanvas = mainCanvas.getContext('2d').getImageData(0, 0, mainCanvas.width, mainCanvas.height);
-      
-      // Si el canvas tiene diferentes dimensiones, necesitamos redimensionar los datos
-      if (mainCanvas.width !== currentImage.width || mainCanvas.height !== currentImage.height) {
-        // Usar createImageBitmap para redimensionar con alta calidad
-        const bitmap = await createImageBitmap(mainCanvas, {
-          resizeWidth: currentImage.width,
-          resizeHeight: currentImage.height,
-          resizeQuality: 'high'
-        });
-        
-        tempCtx.drawImage(bitmap, 0, 0);
-        bitmap.close();
-      } else {
-        tempCtx.putImageData(imageDataFromCanvas, 0, 0);
-      }
-      
-      // Obtener la imagen en formato de alta calidad
-      const editedImageDataUrl = tempCanvas.toDataURL('image/jpeg', 0.98);
-      const result = await window.electronAPI.saveEditedImage(currentImagePath, editedImageDataUrl);
+const handleMouseMove = (e) => {
+  if (!isDrawing || !isInpaintingMode) return;
+  e.preventDefault();
+  drawMask(e);
+};
 
-      if (result.success) {
-        setHasUnsavedChanges(false);
-        
-        // Actualizar la imagen original con los cambios guardados
-        const newOriginal = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-        setOriginalImageData(new ImageData(
-          new Uint8ClampedArray(newOriginal.data),
-          newOriginal.width,
-          newOriginal.height
-        ));
-        
-        clearAllMasks();
-        console.log('Imagen guardada exitosamente con backup:', result.backupPath);
-      } else {
-        alert('Error al guardar: ' + result.error);
-      }
-    } catch (error) {
-      console.error('Error guardando:', error);
-      alert('Error al guardar la imagen');
-    }
-  };
+const handleMouseUp = async (e) => {
+  if (!isDrawing || !isInpaintingMode) return;
+  e.preventDefault();
+  setIsDrawing(false);
+  await processInpainting();
+};
 
   // Función para salir del modo inpainting mejorada
   const exitInpaintingMode = () => {
@@ -1159,31 +1282,13 @@ const TiendaNubeProductManager = () => {
         undoInpainting();
       }
     }
-    
+
     setIsInpaintingMode(false);
     setOriginalImageData(null);
     setCurrentImageData(null);
     setMaskAccumulated(null);
     setHasUnsavedChanges(false);
     clearAllMasks();
-  };
-
-  // Eventos de dibujo
-  const handleMouseDown = (e) => {
-    if (!isInpaintingMode) return;
-    setIsDrawing(true);
-    drawMask(e);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDrawing || !isInpaintingMode) return;
-    drawMask(e);
-  };
-
-  const handleMouseUp = async () => {
-    if (!isDrawing || !isInpaintingMode) return;
-    setIsDrawing(false);
-    await processInpainting();
   };
 
   const restartApp = () => {
@@ -1367,26 +1472,24 @@ const TiendaNubeProductManager = () => {
             <div className="flex-1 p-4 relative">
               <canvas
                 ref={canvasRef}
-                className={`w-full h-full bg-gray-900 ${isInpaintingMode ? 'cursor-crosshair' : 'cursor-default'}`}
+                className={`w-full h-full ${isInpaintingMode ? 'cursor-crosshair' : 'cursor-default'}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={() => setIsDrawing(false)}
               />
 
-              {/* Canvas overlay para mostrar trazos */}
               <canvas
                 ref={overlayCanvasRef}
-                className="absolute inset-4 pointer-events-none"
-                style={{ opacity: isInpaintingMode ? 1 : 0 }}
+                className="absolute inset-0 pointer-events-none"
               />
 
-              {/* Canvas de máscara (invisible) */}
               <canvas
                 ref={maskCanvasRef}
                 className="absolute inset-0 pointer-events-none"
                 style={{ display: 'none' }}
               />
+
 
               {/* Indicador de procesamiento */}
               {isProcessing && (
@@ -1418,8 +1521,8 @@ const TiendaNubeProductManager = () => {
                 <button
                   onClick={() => setIsInpaintingMode(!isInpaintingMode)}
                   className={`p-2 rounded flex items-center gap-1 ${isInpaintingMode
-                      ? 'bg-purple-600 hover:bg-purple-500'
-                      : 'bg-gray-700 hover:bg-gray-600'
+                    ? 'bg-purple-600 hover:bg-purple-500'
+                    : 'bg-gray-700 hover:bg-gray-600'
                     }`}
                   title="Borrado generativo"
                 >
@@ -1430,43 +1533,43 @@ const TiendaNubeProductManager = () => {
                   <>
                     <input
                       type="range"
-                      min="5"
-                      max="50"
+                      min="30"
+                      max="60"
                       value={brushSize}
                       onChange={(e) => setBrushSize(parseInt(e.target.value))}
                       className="w-16 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
                       title={`Tamaño pincel: ${brushSize}px`}
                     />
 
-                    <button 
-                      onClick={clearAllMasks} 
-                      className="p-2 bg-orange-600 hover:bg-orange-500 rounded" 
+                    <button
+                      onClick={clearAllMasks}
+                      className="p-2 bg-orange-600 hover:bg-orange-500 rounded"
                       title="Limpiar máscara"
                     >
                       <Eraser size={16} />
                     </button>
 
-                    <button 
-                      onClick={undoInpainting} 
-                      disabled={!hasUnsavedChanges} 
-                      className="p-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded" 
+                    <button
+                      onClick={undoInpainting}
+                      disabled={!hasUnsavedChanges}
+                      className="p-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded"
                       title="Deshacer todo"
                     >
                       <Undo2 size={16} />
                     </button>
 
-                    <button 
-                      onClick={saveInpaintingChanges} 
-                      disabled={!hasUnsavedChanges} 
-                      className="p-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded" 
+                    <button
+                      onClick={saveInpaintingChanges}
+                      disabled={!hasUnsavedChanges}
+                      className="p-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded"
                       title="Guardar cambios"
                     >
                       <Save size={16} />
                     </button>
 
-                    <button 
-                      onClick={exitInpaintingMode} 
-                      className="p-2 bg-gray-600 hover:bg-gray-500 rounded text-xs" 
+                    <button
+                      onClick={exitInpaintingMode}
+                      className="p-2 bg-gray-600 hover:bg-gray-500 rounded text-xs"
                       title="Salir"
                     >
                       ✕
@@ -1488,20 +1591,20 @@ const TiendaNubeProductManager = () => {
 
           <div className="flex-1 flex flex-col overflow-y-auto bg-gray-900">
             <div className="flex border-b border-gray-700">
-              <button 
-                onClick={() => setActiveTab('general')} 
+              <button
+                onClick={() => setActiveTab('general')}
                 className={`px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}
               >
                 General
               </button>
-              <button 
-                onClick={() => setActiveTab('variantes')} 
+              <button
+                onClick={() => setActiveTab('variantes')}
                 className={`px-4 py-2 text-sm font-medium ${activeTab === 'variantes' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}
               >
                 Variantes
               </button>
-              <button 
-                onClick={() => setActiveTab('combinar')} 
+              <button
+                onClick={() => setActiveTab('combinar')}
                 className={`px-4 py-2 text-sm font-medium ${activeTab === 'combinar' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}
               >
                 Combinar
@@ -1567,8 +1670,8 @@ const TiendaNubeProductManager = () => {
                             key={category}
                             onClick={() => toggleCategory(category)}
                             className={`w-full text-left text-sm px-3 py-2 rounded ${selectedCategories.includes(category)
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-700 hover:bg-gray-600'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-700 hover:bg-gray-600'
                               }`}
                           >
                             {category}
