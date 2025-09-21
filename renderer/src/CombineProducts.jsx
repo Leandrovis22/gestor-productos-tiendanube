@@ -30,6 +30,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
   const [primaryImage, setPrimaryImage] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPropertyGroup, setSelectedPropertyGroup] = useState(null);
+  const [existingPrimaryImages, setExistingPrimaryImages] = useState(new Set());
 
   useEffect(() => {
     const loadImages = async () => {
@@ -46,6 +47,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         const mapExists = await window.electronAPI.fileExists(mapPath);
         if (mapExists) {
           const mappingData = await window.electronAPI.readCsv(mapPath);
+          setExistingPrimaryImages(new Set(mappingData.map(row => row.imagen_principal)));
           mappingData.forEach(row => {
             if (row.imagen_secundaria) {
               secondaryImages.add(row.imagen_secundaria);
@@ -100,7 +102,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
     let primaryProductsInSelection = 0;
     if (mapExists) {
       const mappingData = await window.electronAPI.readCsv(mapPath);
-      const existingPrimaryImages = new Set(mappingData.map(row => row.imagen_principal));
+      const currentPrimaryImages = new Set(mappingData.map(row => row.imagen_principal));
       selectedImages.forEach(img => {
         if (existingPrimaryImages.has(img)) {
           primaryProductsInSelection++;
@@ -172,19 +174,33 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
       // 4. Update local state
       setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
-      setSelectedImages([primaryImage]);
+      setSelectedImages([]);
+      setPrimaryImage(null);
       setSelectedPropertyGroup(null);
       setIsModalOpen(false);
       
       // 5. Notify parent component
       onCombinationSaved();
-
-      alert(`Combinación guardada exitosamente. ${secondaryImages.length} imágenes secundarias vinculadas a ${primaryImage}`);
       
     } catch (error) {
       console.error('Error saving combination:', error);
       alert(`Error al guardar la combinación: ${error.message}`);
     }
+  };
+
+  const getBorderColor = (imageName) => {
+    const isSelected = selectedImages.includes(imageName);
+    if (isSelected) {
+      if (imageName === primaryImage) {
+        return 'border-yellow-500'; // Principal seleccionado
+      }
+      return 'border-blue-500'; // Secundario seleccionado
+    }
+    if (existingPrimaryImages.has(imageName)) {
+      return 'border-red-500'; // Ya es un producto principal
+    }
+    // Producto individual, no seleccionado
+    return 'border-green-500';
   };
 
   const propertyGroups = getUniquePropertyGroups();
@@ -222,7 +238,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         {imagesInDirectory.map(imageName => (
           <div
             key={imageName}
-            className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${selectedImages.includes(imageName) ? (imageName === primaryImage ? 'border-green-500' : 'border-blue-500') : 'border-gray-700 hover:border-gray-600'}`}
+            className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${getBorderColor(imageName)}`}
             onClick={() => toggleImageSelection(imageName)}
           >
             <InlineLocalImage
@@ -235,7 +251,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
               <div className="absolute top-1 right-1">
                 <button
                   onClick={(e) => { e.stopPropagation(); setPrimaryImage(imageName); }}
-                  className={`w-6 h-6 rounded-full text-xs font-bold ${imageName === primaryImage ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800 hover:bg-green-300'}`}
+                  className={`w-6 h-6 rounded-full text-xs font-bold ${imageName === primaryImage ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-800 hover:bg-yellow-300'}`}
                   title="Marcar como principal"
                 >
                   P
