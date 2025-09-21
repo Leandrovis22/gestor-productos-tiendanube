@@ -229,6 +229,109 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
   }
 });
 
+// Add these two new IPC handlers to your electron main.js file
+
+ipcMain.handle('update-product-in-resultado', async (event, resultadoPath, primaryImageName, propertyGroup) => {
+  try {
+    // Check if file exists
+    const exists = await fs.access(resultadoPath).then(() => true).catch(() => false);
+    if (!exists) {
+      console.log('resultado.csv does not exist yet, skipping update');
+      return { success: true };
+    }
+
+    // Read the CSV file
+    const csvContent = await fs.readFile(resultadoPath, 'latin1');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) {
+      return { success: true };
+    }
+
+    // Find and update the line with the primary image
+    let updated = false;
+    const updatedLines = lines.map(line => {
+      const columns = line.split(';');
+      
+      // Look for the primary image in the description or any relevant field
+      // You might need to adjust this logic based on how images are referenced in resultado.csv
+      if (line.includes(primaryImageName)) {
+        updated = true;
+        
+        // Update the relevant columns with the new property group
+        // Assuming: column 1 = name/description, column 2 = categories, and price is in a specific column
+        if (columns.length >= 3) {
+          if (propertyGroup.descripcion) {
+            columns[1] = propertyGroup.descripcion; // Name/Description column
+          }
+          if (propertyGroup.categorias) {
+            columns[2] = propertyGroup.categorias; // Categories column
+          }
+          if (propertyGroup.precio) {
+            // Find the price column (usually around column 9-10)
+            const priceColumnIndex = 9; // Adjust based on your CSV structure
+            if (columns.length > priceColumnIndex) {
+              const cleanPrice = propertyGroup.precio.replace('$', '').replace(',', '.');
+              columns[priceColumnIndex] = cleanPrice;
+            }
+          }
+        }
+        
+        return columns.join(';');
+      }
+      return line;
+    });
+
+    if (updated) {
+      // Write back to file
+      await fs.writeFile(resultadoPath, updatedLines.join('\n') + '\n', 'latin1');
+      console.log(`Updated product ${primaryImageName} in resultado.csv with new properties`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating product in resultado.csv:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, imagesToRemove) => {
+  try {
+    // Check if file exists
+    const exists = await fs.access(resultadoPath).then(() => true).catch(() => false);
+    if (!exists) {
+      console.log('resultado.csv does not exist yet, skipping removal');
+      return { success: true };
+    }
+
+    // Read the CSV file
+    const csvContent = await fs.readFile(resultadoPath, 'latin1');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) {
+      return { success: true };
+    }
+
+    // Filter out lines that contain any of the images to remove
+    const filteredLines = lines.filter(line => {
+      return !imagesToRemove.some(imageToRemove => line.includes(imageToRemove));
+    });
+
+    const removedCount = lines.length - filteredLines.length;
+
+    if (removedCount > 0) {
+      // Write back to file
+      await fs.writeFile(resultadoPath, filteredLines.join('\n') + '\n', 'latin1');
+      console.log(`Removed ${removedCount} products from resultado.csv`);
+    }
+
+    return { success: true, removedCount };
+  } catch (error) {
+    console.error('Error removing products from resultado.csv:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
   try {
     await fs.appendFile(filePath, data, encoding);

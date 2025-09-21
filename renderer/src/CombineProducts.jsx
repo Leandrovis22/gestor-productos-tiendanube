@@ -29,7 +29,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
   const [selectedImages, setSelectedImages] = useState([]);
   const [primaryImage, setPrimaryImage] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDescription, setSelectedDescription] = useState('');
+  const [selectedPropertyGroup, setSelectedPropertyGroup] = useState(null);
 
   useEffect(() => {
     const loadImages = async () => {
@@ -43,7 +43,6 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
     };
 
     loadImages();
-    console.log("CSV Data Received in CombineProducts:", csvData);
   }, [workingDirectory]);
 
   const toggleImageSelection = (imageName) => {
@@ -70,29 +69,78 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
     setPrimaryImage(imagesInDirectory.length > 0 ? imagesInDirectory[0] : null);
   };
 
+  const getUniquePropertyGroups = () => {
+    if (!csvData || !selectedImages.length) return [];
+    
+    const groups = [];
+    const seenGroups = new Set();
+    
+    selectedImages.forEach(imageName => {
+      const row = csvData.find(r => r.archivo === imageName);
+      if (row) {
+        const groupKey = `${row.descripcion || ''}|${row.precio || ''}|${row.categorias || ''}`;
+        if (!seenGroups.has(groupKey) && (row.descripcion || row.precio || row.categorias)) {
+          seenGroups.add(groupKey);
+          groups.push({
+            imageName,
+            descripcion: row.descripcion || '',
+            precio: row.precio || '',
+            categorias: row.categorias || '',
+            key: groupKey
+          });
+        }
+      }
+    });
+    
+    return groups;
+  };
+
   const saveCombination = async () => {
     if (!primaryImage || selectedImages.length < 2) {
       alert("Debes seleccionar al menos dos imágenes, una de ellas como principal.");
       return;
     }
 
-    const combinationOutputPath = `${workingDirectory}/imagenes_producto.csv`;
-    const secondaryImages = selectedImages.filter(img => img !== primaryImage);
-    const descriptionToSave = selectedDescription || (csvData.find(row => row.archivo === primaryImage)?.descripcion || '');
-
-    if (secondaryImages.length > 0) {
-      const rows = secondaryImages.map(secImg => `"${primaryImage}";"${secImg}";"${descriptionToSave}"`).join('\n') + '\n';
-      await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
+    if (!selectedPropertyGroup) {
+      alert("Debes seleccionar un grupo de propiedades para el producto principal.");
+      return;
     }
 
-    setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
-    setSelectedImages([primaryImage]);
-    if (primaryImage) {
-        setSelectedDescription(csvData.find(row => row.archivo === primaryImage)?.descripcion || '');
+    try {
+      // 1. Save image combinations to imagenes_producto.csv
+      const combinationOutputPath = `${workingDirectory}/imagenes_producto.csv`;
+      const secondaryImages = selectedImages.filter(img => img !== primaryImage);
+      
+      if (secondaryImages.length > 0) {
+        const rows = secondaryImages.map(secImg => `"${primaryImage}";"${secImg}"`).join('\n') + '\n';
+        await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
+      }
+
+      // 2. Update resultado.csv with the selected properties for the primary image
+      const resultadoPath = `${workingDirectory}/resultado.csv`;
+      await window.electronAPI.updateProductInResultado(resultadoPath, primaryImage, selectedPropertyGroup);
+
+      // 3. Remove secondary images from resultado.csv
+      await window.electronAPI.removeProductsFromResultado(resultadoPath, secondaryImages);
+
+      // 4. Update local state
+      setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
+      setSelectedImages([primaryImage]);
+      setSelectedPropertyGroup(null);
+      setIsModalOpen(false);
+      
+      // 5. Notify parent component
+      onCombinationSaved();
+
+      alert(`Combinación guardada exitosamente. ${secondaryImages.length} imágenes secundarias vinculadas a ${primaryImage}`);
+      
+    } catch (error) {
+      console.error('Error saving combination:', error);
+      alert(`Error al guardar la combinación: ${error.message}`);
     }
-    setIsModalOpen(false);
-    onCombinationSaved(); // Notificar al padre que se guardó una combinación
   };
+
+  const propertyGroups = getUniquePropertyGroups();
 
   return (
     <div className="p-6">
@@ -105,22 +153,22 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
           Deseleccionar Todo
         </button>
         {selectedImages.length > 0 && (
-        <div className="flex items-center gap-4 p-1 bg-gray-800 rounded-lg">
-          <div>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
-              disabled={selectedImages.length < 2}
-            >
-              Combinar {selectedImages.length} imágenes
-            </button>
+          <div className="flex items-center gap-4 p-1 bg-gray-800 rounded-lg">
+            <div>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
+                disabled={selectedImages.length < 2}
+              >
+                Combinar {selectedImages.length} imágenes
+              </button>
+            </div>
+            <div className="flex flex-col">
+              <p className="text-sm text-gray-400">Principal: {primaryImage || 'Ninguna seleccionada'}</p>
+              {selectedImages.length < 2 && <p className="text-xs text-yellow-400 mt-1">Selecciona al menos 2 imágenes para combinar.</p>}
+            </div>
           </div>
-          <div className="flex flex-col">
-            <p className="text-sm text-gray-400">Principal: {primaryImage || 'Ninguna seleccionada'}</p>
-            {selectedImages.length < 2 && <p className="text-xs text-yellow-400 mt-1">Selecciona al menos 2 imágenes para combinar.</p>}
-          </div>
-        </div>
-      )}
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
@@ -153,40 +201,101 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-[57rem]">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-[65rem] max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">Confirmar Combinación</h3>
-            <p className="text-sm text-gray-300 mb-6">Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.</p>
-            <div className="mb-4">
-                {console.log("Rendering modal, csvData:", csvData)}
-                <label htmlFor="description-select" className="block text-sm font-medium text-gray-300 mb-2">
-                    Selecciona la descripción a usar para el producto principal:
-                </label>
-                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto bg-gray-700 p-2 rounded">
-                    {csvData
-                        .filter(row => selectedImages.includes(row.archivo) && row.descripcion)
-                        .map((row, index) => (
-                        <div
-                            key={`${row.archivo}-${index}`}
-                            onClick={() => setSelectedDescription(row.descripcion)}
-                            className={`flex items-center gap-3 p-2 rounded cursor-pointer ${
-                                selectedDescription === row.descripcion ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'
-                            }`}
-                        >
-                            <InlineLocalImage
-                                path={`${workingDirectory}/${row.archivo}`}
-                                alt={row.descripcion}
-                                className="w-20 h-20 object-cover rounded-sm flex-shrink-0"
-                            />
-                            <span className="text-sm">{row.descripcion}</span>
+            <p className="text-sm text-gray-300 mb-6">
+              Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.
+            </p>
+            
+            <div className="mb-6">
+              <h4 className="text-md font-semibold text-gray-300 mb-3">
+                Selecciona el grupo de propiedades para el producto principal:
+              </h4>
+              
+              {propertyGroups.length > 0 ? (
+                <div className="flex flex-wrap gap-4 justify-center">
+                  {propertyGroups.map((group, index) => (
+                    <div
+                      key={group.key}
+                      onClick={() => setSelectedPropertyGroup(group)}
+                      className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedPropertyGroup?.key === group.key
+                          ? 'border-blue-500 bg-blue-900/20'
+                          : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                      } w-[30rem]`}
+                    >
+                      <div className="flex-shrink-0">
+                        <InlineLocalImage
+                          path={`${workingDirectory}/${group.imageName}`}
+                          alt={group.imageName}
+                          className="w-[10rem] h-[13rem] object-cover rounded-md"
+                        />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="space-y-2">     
+                            <div className="flex-1">
+                              <p className="text-xs text-gray-200 mt-1">{group.imageName}</p>
+                              
+                            </div>                     
+                          <div className="flex gap-4">
+                          
+                            
+                            <div className="flex-1">
+                              <span className="text-xs text-gray-400 font-medium">Descripción:</span>
+                              <p className="text-sm text-gray-200 break-words">
+                                {group.descripcion || <span className="text-gray-500 italic">Sin descripción</span>}
+                              </p>
+                            </div>
+                            
+                            <div className="flex-1 max-w-[5rem]">
+                              <span className="text-xs text-gray-400 font-medium">Precio:</span>
+                              <p className="text-sm text-gray-200">
+                                {group.precio || <span className="text-gray-500 italic">Sin precio</span>}
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-xs text-gray-400 font-medium">Categorías:</span>
+                            <p className="text-sm text-gray-200 break-words">
+                              {group.categorias || <span className="text-gray-500 italic">Sin categorías</span>}
+                            </p>
+                          </div>
                         </div>
-                    ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-gray-400 text-sm">No se encontraron grupos de propiedades válidos en las imágenes seleccionadas.</p>
+              )}
             </div>
-            <div className="flex justify-end gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded">
+
+            <div className="border-t border-gray-600 pt-4">
+              <h4 className="text-sm font-medium text-gray-400 mb-2">Resumen de la operación:</h4>
+              <div className="text-sm text-gray-300 space-y-1">
+                <p>• <strong>{primaryImage}</strong> se mantendrá como producto principal</p>
+                <p>• <strong>{selectedImages.length - 1}</strong> imágenes se vincularán como secundarias</p>
+                <p>• Las imágenes secundarias se eliminarán de resultado.csv</p>
+                <p>• El producto principal adoptará las propiedades del grupo seleccionado</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4 mt-6">
+              <button 
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedPropertyGroup(null);
+                }} 
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
+              >
                 Cancelar
               </button>
-              <button onClick={saveCombination} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded">
+              <button 
+                onClick={saveCombination} 
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
+                disabled={!selectedPropertyGroup}
+              >
                 Confirmar y Guardar
               </button>
             </div>
