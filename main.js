@@ -423,6 +423,16 @@ ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr
 
 
 
+ipcMain.handle('get-directory-from-path', (event, filePath) => {
+  try {
+    return path.dirname(path.normalize(filePath));
+  } catch (error) {
+    console.error('Error getting directory from path:', error);
+    return null;
+  }
+});
+
+
 //Image manipulation root main.js
 
 // Handler mejorado para guardar imagen editada manteniendo dimensiones originales

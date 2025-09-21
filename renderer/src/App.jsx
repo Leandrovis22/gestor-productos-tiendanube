@@ -228,10 +228,21 @@ const TiendaNubeProductManager = () => {
         ]);
         if (result.filePath && !result.canceled) {
           setCsvPath(result.filePath);
+
+          // Automatically set working directory to the same folder as the CSV
+          const csvDirectory = await window.electronAPI.getDirectoryFromPath(result.filePath);
+          setWorkingDirectory(csvDirectory);
+          setAllProductsProcessed(false);
+
+          // Create output CSV in the same directory
+          await createOutputCsv(csvDirectory);
+
+          // Load CSV data
           loadCsvData(result.filePath);
         }
       } else {
         const input = document.createElement('input');
+
         input.type = 'file';
         input.accept = '.csv';
         input.onchange = (e) => {
@@ -902,18 +913,30 @@ const TiendaNubeProductManager = () => {
               <FileText size={16} />
               Seleccionar resultado.csv
             </button>
+
+            {/* Make the manual directory selection optional */}
             <button
               onClick={selectWorkingDirectory}
-              className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded"
+              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded text-sm opacity-75"
+              title="Cambiar carpeta manualmente (opcional)"
             >
               <FolderOpen size={16} />
-              Seleccionar Carpeta
+              Cambiar Carpeta
             </button>
+
             <span className="text-gray-300">
-              {csvPath ? `CSV: ${csvPath.split('/').pop()}` : 'Sin archivo seleccionado'}
+              {csvPath ? (
+                <div className="text-sm">
+                  <div>CSV: {csvPath.split('/').pop()}</div>
+                  <div className="text-xs text-gray-400">
+                    Carpeta: {workingDirectory ? workingDirectory.split('/').pop() : 'No seleccionada'}
+                  </div>
+                </div>
+              ) : (
+                'Sin archivo seleccionado'
+              )}
             </span>
           </div>
-
           <div className="flex items-center gap-4">
             <div className="text-right text-sm text-gray-300">
               <div>{currentImageIndex + 1}/{imageQueue.length} productos</div>
