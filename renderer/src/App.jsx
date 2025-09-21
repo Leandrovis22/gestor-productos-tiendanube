@@ -906,13 +906,6 @@ const TiendaNubeProductManager = () => {
                 className="w-full h-full cursor-default"
               />
             </div>
-
-            <div className="p-4 border-t border-gray-700 flex items-center gap-2">
-              <button onClick={() => handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomIn size={16} /></button>
-              <button onClick={() => handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomOut size={16} /></button>
-              <button onClick={() => setZoomFactor(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><RotateCcw size={16} /></button>
-            </div>
-
             <InpaintingTool
               ref={inpaintingToolRef}
               mainCanvasRef={canvasRef}
@@ -922,7 +915,16 @@ const TiendaNubeProductManager = () => {
               zoomFactor={zoomFactor}
               displayOffset={displayOffset}
               displaySize={displaySize}
-            />
+            >
+              <div className="p-2 border-t border-gray-700 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomIn size={16} /></button>
+                  <button onClick={() => handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomOut size={16} /></button>
+                  <button onClick={() => setZoomFactor(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><RotateCcw size={16} /></button>
+                </div>
+                {/* Inpainting controls will be injected here */}
+              </div>
+            </InpaintingTool>
 
             <ProductThumbnails />
           </div>

@@ -7,11 +7,13 @@ const InpaintingTool = forwardRef(({
   currentImage, 
   currentImagePath,
   onImageUpdateFromInpaint,
-  zoomFactor, 
+  zoomFactor,
   displayOffset, 
-  displaySize
+  displaySize,
+  children
 }, ref) => {
-  const [isInpaintMode, setIsInpaintMode] = useState(false);
+  // isInpaintMode ahora es siempre true
+  const [isInpaintMode, setIsInpaintMode] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState(26);
   const [maskPaths, setMaskPaths] = useState([]);
@@ -34,16 +36,18 @@ const InpaintingTool = forwardRef(({
       clearTimeout(drawTimeoutRef.current);
       drawTimeoutRef.current = null;
     }
-    setIsInpaintMode(false);
+    // Ya no se cambia el modo, siempre está activo
+    // setIsInpaintMode(false); 
   };
 
   // Exponer la función de reinicio al componente padre
   useImperativeHandle(ref, () => ({
-    resetState
+    resetState,
+    undoChanges,
+    isProcessing
   }));
 
 
-  // Backup de imagen original al entrar en modo edición
   useEffect(() => {
     if (isInpaintMode && currentImage && !hasBackedUpOriginal) {
       setOriginalImageBackup(currentImage);
@@ -334,77 +338,46 @@ const InpaintingTool = forwardRef(({
     };
   }, []);
 
-  return (
-    <div className="border-t border-gray-700 bg-gray-800">
-      {/* Inpainting Controls */}
-      <div className="p-3">
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => setIsInpaintMode(!isInpaintMode)}
-            disabled={isProcessing}
-            className={`flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
-              isInpaintMode 
-                ? 'bg-blue-600 hover:bg-blue-500 text-white' 
-                : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <Brush size={14} />
-            {isInpaintMode ? 'Salir Edición' : 'Editar Imagen'}
-          </button>
-
-          {isInpaintMode && !isProcessing && (
-            <>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-400">Pincel:</label>
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                  className="w-16"
-                />
-                <span className="text-xs text-gray-400 w-6">{brushSize}</span>
-              </div>
-
-              {maskPaths.length > 0 && (
-                <button
-                  onClick={clearMask}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium"
-                  title="Limpiar trazos actuales"
-                >
-                  <RotateCcw size={14} />
-                  Limpiar
-                </button>
-              )}
-
+  // Inyectar los controles de inpainting en los children
+  const childrenWithInpaintControls = React.Children.map(children, child => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, {
+        children: (
+          <>
+            {child.props.children}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400">Pincel:</label>
+              <input
+                type="range"
+                min="5"
+                max="50"
+                value={brushSize}
+                onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                className="w-24"
+                disabled={isProcessing}
+              />
+              <span className="text-xs text-gray-400 w-6">{brushSize}</span>
               {hasBackedUpOriginal && (
                 <button
                   onClick={undoChanges}
-                  className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-medium"
+                  disabled={isProcessing}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Restaurar imagen original"
                 >
                   <Undo size={14} />
                   Deshacer Todo
                 </button>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        ),
+      });
+    }
+    return child;
+  });
 
-        {isInpaintMode && (
-          <div className="text-xs text-gray-400 space-y-1">
-            <p>• Dibuja sobre las áreas que quieres eliminar/reparar</p>
-            <p>• El inpainting se aplica automáticamente al soltar el mouse</p>
-            <p>• Usa "Limpiar" para borrar trazos sin aplicar</p>
-            <p className="text-yellow-400">• Los cambios NO se guardan hasta hacer clic en "Siguiente Producto"</p>
-            {isProcessing && (
-              <p className="text-yellow-400 font-medium">• Procesando inpainting... Por favor espera.</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+  return (
+    <>{childrenWithInpaintControls}</>
   );
 });
 
