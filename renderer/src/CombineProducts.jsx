@@ -88,6 +88,34 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
     setPrimaryImage(imagesInDirectory.length > 0 ? imagesInDirectory[0] : null);
   };
 
+  const handleCombineClick = async () => {
+    if (selectedImages.length < 2) {
+      alert("Debes seleccionar al menos 2 imágenes para combinar.");
+      return;
+    }
+
+    // Validar que no se estén combinando dos productos principales
+    const mapPath = `${workingDirectory}/imagenes_producto.csv`;
+    const mapExists = await window.electronAPI.fileExists(mapPath);
+    let primaryProductsInSelection = 0;
+    if (mapExists) {
+      const mappingData = await window.electronAPI.readCsv(mapPath);
+      const existingPrimaryImages = new Set(mappingData.map(row => row.imagen_principal));
+      selectedImages.forEach(img => {
+        if (existingPrimaryImages.has(img)) {
+          primaryProductsInSelection++;
+        }
+      });
+    }
+
+    if (primaryProductsInSelection > 1) {
+      alert(`No se pueden combinar dos o más productos que ya son principales. Has seleccionado ${primaryProductsInSelection} productos principales en tu combinación.`);
+      return;
+    }
+
+    setIsModalOpen(true);
+  };
+
   const getUniquePropertyGroups = () => {
     if (!csvData || !selectedImages.length) return [];
     
@@ -175,7 +203,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
           <div className="flex items-center gap-4 p-1 bg-gray-800 rounded-lg">
             <div>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleCombineClick}
                 className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
                 disabled={selectedImages.length < 2}
               >
