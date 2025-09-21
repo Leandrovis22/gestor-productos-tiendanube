@@ -11,6 +11,101 @@ import { ImageManager, useImageManager } from './ImageManager';
 import { ProductEditor } from './ProductEditor';
 import CombineProducts from '../CombineProducts';
 
+// Componentes movidos fuera para evitar re-renderizados innecesarios que quitan el foco de los inputs.
+
+// FileSelector como componente interno
+const FileSelector = ({ productManager }) => (
+  <div className="flex items-center gap-4">
+    <button
+      onClick={productManager.selectCsvFile}
+      className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded"
+    >
+      <FileText size={16} />
+      Seleccionar resultado.csv
+    </button>
+
+    <button
+      onClick={productManager.selectWorkingDirectory}
+      className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded text-sm opacity-75"
+      title="Cambiar carpeta manualmente (opcional)"
+    >
+      <FolderOpen size={16} />
+      Cambiar Carpeta
+    </button>
+
+    <span className="text-gray-300">
+      {productManager.csvPath ? (
+        <div className="text-sm">
+          <div>CSV: {productManager.csvPath.split('/').pop()}</div>
+          <div className="text-xs text-gray-400">
+            Carpeta: {productManager.workingDirectory ? productManager.workingDirectory.split('/').pop() : 'No seleccionada'}
+          </div>
+        </div>
+      ) : (
+        'Sin archivo seleccionado'
+      )}
+    </span>
+  </div>
+);
+
+// Tabs del editor
+const EditorTabs = ({ activeTab, setActiveTab }) => (
+  <div className="flex border-b border-gray-700">
+    <button
+      onClick={() => setActiveTab('general')}
+      className={`px-4 py-2 text-sm font-medium ${
+        activeTab === 'general' 
+          ? 'bg-gray-800 border-b-2 border-blue-500' 
+          : 'text-gray-400 hover:bg-gray-800'
+      }`}
+    >
+      General
+    </button>
+    <button
+      onClick={() => setActiveTab('variantes')}
+      className={`px-4 py-2 text-sm font-medium ${
+        activeTab === 'variantes' 
+          ? 'bg-gray-800 border-b-2 border-blue-500' 
+          : 'text-gray-400 hover:bg-gray-800'
+      }`}
+    >
+      Variantes
+    </button>
+    <button
+      onClick={() => setActiveTab('combinar')}
+      className={`px-4 py-2 text-sm font-medium ${
+        activeTab === 'combinar' 
+          ? 'bg-gray-800 border-b-2 border-blue-500' 
+          : 'text-gray-400 hover:bg-gray-800'
+      }`}
+    >
+      Combinar
+    </button>
+  </div>
+);
+
+// Pantalla de productos procesados
+const ProcessedScreen = ({ onRestart }) => (
+  <div className="flex-1 flex flex-col items-center justify-center text-center">
+    <h2 className="text-2xl font-bold mb-4">¡Has procesado todos los productos!</h2>
+    <p className="text-gray-400 mb-8">El archivo `salida.csv` ha sido guardado en tu carpeta de trabajo.</p>
+    <div className="flex gap-4">
+      <button
+        onClick={onRestart}
+        className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded"
+      >
+        Reiniciar
+      </button>
+      <button
+        onClick={() => window.close()}
+        className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded"
+      >
+        Cerrar Aplicación
+      </button>
+    </div>
+  </div>
+);
+
 const TiendaNubeProductManager = () => {
   const [activeTab, setActiveTab] = useState('general');
 
@@ -111,104 +206,11 @@ const TiendaNubeProductManager = () => {
     }
   }, [productManager.csvData, productManager.workingDirectory, productManager.imageQueue]);
 
-  // FileSelector como componente interno
-  const FileSelector = () => (
-    <div className="flex items-center gap-4">
-      <button
-        onClick={productManager.selectCsvFile}
-        className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded"
-      >
-        <FileText size={16} />
-        Seleccionar resultado.csv
-      </button>
-
-      <button
-        onClick={productManager.selectWorkingDirectory}
-        className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded text-sm opacity-75"
-        title="Cambiar carpeta manualmente (opcional)"
-      >
-        <FolderOpen size={16} />
-        Cambiar Carpeta
-      </button>
-
-      <span className="text-gray-300">
-        {productManager.csvPath ? (
-          <div className="text-sm">
-            <div>CSV: {productManager.csvPath.split('/').pop()}</div>
-            <div className="text-xs text-gray-400">
-              Carpeta: {productManager.workingDirectory ? productManager.workingDirectory.split('/').pop() : 'No seleccionada'}
-            </div>
-          </div>
-        ) : (
-          'Sin archivo seleccionado'
-        )}
-      </span>
-    </div>
-  );
-
-  // Tabs del editor
-  const EditorTabs = () => (
-    <div className="flex border-b border-gray-700">
-      <button
-        onClick={() => setActiveTab('general')}
-        className={`px-4 py-2 text-sm font-medium ${
-          activeTab === 'general' 
-            ? 'bg-gray-800 border-b-2 border-blue-500' 
-            : 'text-gray-400 hover:bg-gray-800'
-        }`}
-      >
-        General
-      </button>
-      <button
-        onClick={() => setActiveTab('variantes')}
-        className={`px-4 py-2 text-sm font-medium ${
-          activeTab === 'variantes' 
-            ? 'bg-gray-800 border-b-2 border-blue-500' 
-            : 'text-gray-400 hover:bg-gray-800'
-        }`}
-      >
-        Variantes
-      </button>
-      <button
-        onClick={() => setActiveTab('combinar')}
-        className={`px-4 py-2 text-sm font-medium ${
-          activeTab === 'combinar' 
-            ? 'bg-gray-800 border-b-2 border-blue-500' 
-            : 'text-gray-400 hover:bg-gray-800'
-        }`}
-      >
-        Combinar
-      </button>
-    </div>
-  );
-
-  // Pantalla de productos procesados
-  const ProcessedScreen = () => (
-    <div className="flex-1 flex flex-col items-center justify-center text-center">
-      <h2 className="text-2xl font-bold mb-4">¡Has procesado todos los productos!</h2>
-      <p className="text-gray-400 mb-8">El archivo `salida.csv` ha sido guardado en tu carpeta de trabajo.</p>
-      <div className="flex gap-4">
-        <button
-          onClick={productManager.restartApp}
-          className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded"
-        >
-          Reiniciar
-        </button>
-        <button
-          onClick={() => window.close()}
-          className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded"
-        >
-          Cerrar Aplicación
-        </button>
-      </div>
-    </div>
-  );
-
   // Header con controles principales
   const Header = () => (
     <div className="bg-gray-800 p-4 border-b border-gray-700">
       <div className="flex items-center justify-between">
-        <FileSelector />
+        <FileSelector productManager={productManager} />
         <div className="flex items-center gap-4">
           <div className="text-right text-sm text-gray-300">
             <div>{productManager.currentImageIndex + 1}/{productManager.imageQueue.length} productos</div>
@@ -260,7 +262,7 @@ const TiendaNubeProductManager = () => {
       <Header />
 
       {productManager.allProductsProcessed ? (
-        <ProcessedScreen />
+        <ProcessedScreen onRestart={productManager.restartApp} />
       ) : (
         <div className="flex flex-1 overflow-hidden">
           <ImageManager 
@@ -274,7 +276,7 @@ const TiendaNubeProductManager = () => {
           />
 
           <div className="flex-1 flex flex-col overflow-y-auto bg-gray-900">
-            <EditorTabs />
+            <EditorTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
             <ProductEditor
               // Datos básicos del producto
