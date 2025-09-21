@@ -790,9 +790,12 @@ const TiendaNubeProductManager = () => {
   }, [csvData, workingDirectory, imageQueue]);
 
   const handleCombinationSaved = () => {
-    loadProductImagesMap().then(() => {
-      loadImagesFromData(csvData);
-    });
+    // Forzar la recarga de la lista de imágenes en el componente de combinación
+    // Esto se logra cambiando el workingDirectory temporalmente para disparar el useEffect en CombineProducts.
+    // Es un poco un truco, pero efectivo para forzar la actualización.
+    const currentDir = workingDirectory;
+    setWorkingDirectory('');
+    setTimeout(() => setWorkingDirectory(currentDir), 50);
   };
 
   const handleInpaintingImageUpdate = (img) => {

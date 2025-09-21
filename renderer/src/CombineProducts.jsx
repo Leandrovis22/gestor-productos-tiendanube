@@ -8,15 +8,19 @@ const InlineLocalImage = ({ path, alt, className }) => {
     const loadImage = async () => {
       if (window.electronAPI && path) {
         try {
+          console.log('🔍 Intentando cargar imagen desde:', path); // DEBUG
+          console.log('🔍 Working directory:', workingDirectory); // DEBUG
           const imageData = await window.electronAPI.loadImage(path);
-          if (isMounted) {
+          if (isMounted && imageData) { // Verificar que imageData no sea null
             setSrc(imageData);
           }
         } catch (error) {
-          console.error(`Error loading image ${path}:`, error);
+          console.warn(`Imagen no disponible: ${path}`);
+          // El componente mostrará el placeholder gris automáticamente
         }
       }
     };
+
     loadImage();
     return () => { isMounted = false; };
   }, [path]);
@@ -36,11 +40,11 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
     const loadImages = async () => {
       if (workingDirectory && window.electronAPI) {
         const allImages = await window.electronAPI.listFiles(workingDirectory, ['.jpg', '.jpeg', '.png', '.webp']);
-        
+
         // Cargar imágenes ya procesadas o saltadas
         const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
         const saltadasImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/saltadas`, ['.jpg', '.jpeg', '.png', '.webp']));
-        
+
         // Cargar imágenes que ya son secundarias en una combinación
         const secondaryImages = new Set();
         const mapPath = `${workingDirectory}/imagenes_producto.csv`;
@@ -56,7 +60,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         }
 
         // Filtrar imágenes para no mostrar las ya procesadas, saltadas o combinadas como secundarias
-        const availableImages = allImages.filter(img => 
+        const availableImages = allImages.filter(img =>
           !processedImages.has(img) && !saltadasImages.has(img) && !secondaryImages.has(img)
         );
         setImagesInDirectory(availableImages);
@@ -75,7 +79,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         newSelection.add(imageName);
       }
       const newArray = Array.from(newSelection);
-      
+
       if (primaryImage === imageName && !newSelection.has(imageName)) {
         setPrimaryImage(newArray.length > 0 ? newArray[0] : null);
       } else if (!primaryImage && newArray.length > 0) {
@@ -120,10 +124,10 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
   const getUniquePropertyGroups = () => {
     if (!csvData || !selectedImages.length) return [];
-    
+
     const groups = [];
     const seenGroups = new Set();
-    
+
     selectedImages.forEach(imageName => {
       const row = csvData.find(r => r.archivo === imageName);
       if (row) {
@@ -140,7 +144,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         }
       }
     });
-    
+
     return groups;
   };
 
@@ -159,7 +163,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       // 1. Save image combinations to imagenes_producto.csv
       const combinationOutputPath = `${workingDirectory}/imagenes_producto.csv`;
       const secondaryImages = selectedImages.filter(img => img !== primaryImage);
-      
+
       if (secondaryImages.length > 0) {
         const rows = secondaryImages.map(secImg => `"${primaryImage}";"${secImg}"`).join('\n') + '\n';
         await window.electronAPI.appendFile(combinationOutputPath, rows, 'latin1');
@@ -178,10 +182,10 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       setPrimaryImage(null);
       setSelectedPropertyGroup(null);
       setIsModalOpen(false);
-      
+
       // 5. Notify parent component
       onCombinationSaved();
-      
+
     } catch (error) {
       console.error('Error saving combination:', error);
       alert(`Error al guardar la combinación: ${error.message}`);
@@ -269,23 +273,22 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
             <p className="text-sm text-gray-300 mb-6">
               Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.
             </p>
-            
+
             <div className="mb-6">
               <h4 className="text-md font-semibold text-gray-300 mb-3">
                 Selecciona el grupo de propiedades para el producto principal:
               </h4>
-              
+
               {propertyGroups.length > 0 ? (
                 <div className="flex flex-wrap gap-4 justify-center">
                   {propertyGroups.map((group, index) => (
                     <div
                       key={group.key}
                       onClick={() => setSelectedPropertyGroup(group)}
-                      className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedPropertyGroup?.key === group.key
+                      className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedPropertyGroup?.key === group.key
                           ? 'border-blue-500 bg-blue-900/20'
                           : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
-                      } w-[30rem]`}
+                        } w-[30rem]`}
                     >
                       <div className="flex-shrink-0">
                         <InlineLocalImage
@@ -294,23 +297,23 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                           className="w-[10rem] h-[13rem] object-cover rounded-md"
                         />
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
-                        <div className="space-y-2">     
-                            <div className="flex-1">
-                              <p className="text-xs text-gray-200 mt-1">{group.imageName}</p>
-                              
-                            </div>                     
+                        <div className="space-y-2">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-200 mt-1">{group.imageName}</p>
+
+                          </div>
                           <div className="flex gap-4">
-                          
-                            
+
+
                             <div className="flex-1">
                               <span className="text-xs text-gray-400 font-medium">Descripción:</span>
                               <p className="text-sm text-gray-200 break-words">
                                 {group.descripcion || <span className="text-gray-500 italic">Sin descripción</span>}
                               </p>
                             </div>
-                            
+
                             <div className="flex-1 max-w-[5rem]">
                               <span className="text-xs text-gray-400 font-medium">Precio:</span>
                               <p className="text-sm text-gray-200">
@@ -345,17 +348,17 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
             </div>
 
             <div className="flex justify-end gap-4 mt-6">
-              <button 
+              <button
                 onClick={() => {
                   setIsModalOpen(false);
                   setSelectedPropertyGroup(null);
-                }} 
+                }}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
               >
                 Cancelar
               </button>
-              <button 
-                onClick={saveCombination} 
+              <button
+                onClick={saveCombination}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
                 disabled={!selectedPropertyGroup}
               >

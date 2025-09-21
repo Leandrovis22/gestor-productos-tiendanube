@@ -728,18 +728,21 @@ ipcMain.handle('get-image-info', async (event, imagePath) => {
 });
 
 // Handler para cargar imagen
-if (!ipcMain.listenerCount('load-image')) {
-  ipcMain.handle('load-image', async (event, imagePath) => {
-    try {
-      const imageBuffer = await fs.readFile(imagePath);
-      const base64 = imageBuffer.toString('base64');
-      const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      return `data:${mimeType};base64,${base64}`;
-    } catch (error) {
-      throw new Error(`Error loading image: ${error.message}`);
-    }
-  });
-}
+ipcMain.handle('load-image', async (event, imagePath) => {
+  try {
+    // Verificar si el archivo existe primero
+    await fs.access(imagePath);
+    
+    const imageBuffer = await fs.readFile(imagePath);
+    const base64 = imageBuffer.toString('base64');
+    const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return `data:${mimeType};base64,${base64}`;
+  } catch (error) {
+    console.log(`⚠️ Imagen no encontrada: ${imagePath}`);
+    // En lugar de lanzar error, devolver null para que el componente pueda manejarlo
+    return null;
+  }
+});
 
 
 
