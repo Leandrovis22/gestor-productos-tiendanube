@@ -310,9 +310,6 @@ const InpaintingTool = forwardRef(({
           setHasUnsavedChanges(true);
           // Force immediate redraw with new image
           displayImageHelper(img, mainCanvasRef.current, zoomFactor);
-          
-          // Clear mask paths after successful inpainting
-          setMaskPaths([]);
         };
         img.onerror = () => {
           console.error('❌ [INPAINT] Error cargando la imagen procesada desde base64');
@@ -322,6 +319,9 @@ const InpaintingTool = forwardRef(({
         console.log('[INPAINT_DEBUG] processInpainting: Inpainting exitoso. Actualizando imagen.');
         img.src = result.imageData;
       } else {
+        // If inpainting fails, redraw the current image to clear any temporary strokes
+        displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor);
+        setMaskPaths([]); // Clear paths on failure too
         throw new Error(result.error || 'Error desconocido en inpainting');
       }
 
