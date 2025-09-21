@@ -218,13 +218,11 @@ export const useProductManager = () => {
 
     if (!name) return;
 
-    const urlId = generateUrlId(name);
     const categoriesStr = selectedCategories.length > 0
       ? selectedCategories.join(', ')
       : originalCategories;
 
     const baseData = {
-      urlId,
       name,
       categories: categoriesStr,
       price: price,
@@ -233,17 +231,15 @@ export const useProductManager = () => {
     };
 
     if (window.electronAPI) {
-      await window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
+      // Guardamos el producto y recibimos la urlId generada en el backend
+      const { urlId } = await window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
 
       const imagesStr = currentProductAllImages.join(',');
       await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     }
 
-    setSavedImages(prev => {
-      const newSet = new Set(prev);
-      currentProductAllImages.forEach(img => newSet.add(img));
-      return newSet;
-    });
+    // Actualizamos el set de imágenes guardadas
+    setSavedImages(prev => new Set([...prev, ...currentProductAllImages]));
   };
 
   // Pasar al siguiente producto
@@ -372,16 +368,6 @@ export const useProductManager = () => {
     };
     setupDirectory();
   }, [workingDirectory, csvData]);
-
-  // Helper function para generar URL ID
-  const generateUrlId = (name) => {
-    return name
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim('-');
-  };
 
   return {
     // Estados

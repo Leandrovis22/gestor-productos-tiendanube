@@ -122,11 +122,15 @@ ipcMain.handle('create-csv', async (event, csvPath, headers) => {
 
 ipcMain.handle('save-product', async (event, csvPath, productData, variants) => {
   try {
+    // Función para generar un identificador de URL único y limpio.
     const generateUrlId = (name) => {
-      const timestamp = new Date().toISOString()
-        .slice(0, 19)
-        .replace(/[-:]/g, '')
-        .replace('T', '-');
+      const now = new Date();
+      const pad = (num) => num.toString().padStart(2, '0');
+      const day = pad(now.getDate());
+      const month = pad(now.getMonth() + 1); // Meses son 0-indexados
+      const hours = pad(now.getHours());
+      const minutes = pad(now.getMinutes());
+      const timestamp = `${day}-${month}-${hours}-${minutes}`;
       
       const cleanName = name.toLowerCase()
         .replace(/[áéíóúñü]/g, match => ({
@@ -220,9 +224,9 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
     }
 
     const csvRows = rows.map(row => row.join(';')).join('\n') + '\n';
-    await fs.appendFile(csvPath, csvRows, 'latin1'); // Usar 'latin1' para codificación ANSI
+    await fs.appendFile(csvPath, csvRows, 'latin1');
 
-    return { success: true, urlId };
+    return { success: true, urlId }; // <-- Devolvemos la urlId generada
   } catch (error) {
     console.error('Error saving product:', error);
     return { success: false, error: error.message };
