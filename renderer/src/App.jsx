@@ -70,6 +70,7 @@ const TiendaNubeProductManager = () => {
   const imageRef = useRef(null);
   const canvasRef = useRef(null);
   const isInpaintingUpdateRef = useRef(false);
+  const loadingImageRef = useRef(null);
   const inpaintingToolRef = useRef(null);
 
   const predefinedColors = [
@@ -157,10 +158,16 @@ const TiendaNubeProductManager = () => {
   const loadImageOnly = async (imagePath, filename) => {
     if (!window.electronAPI) return;
 
+    loadingImageRef.current = filename;
+
     try {
       const exists = await window.electronAPI.fileExists(imagePath);
       if (!exists) {
         console.error('Image file does not exist:', imagePath);
+        return;
+      }
+      // Si la imagen que se va a cargar no es la que se está cargando actualmente, detener.
+      if (loadingImageRef.current !== filename) {
         return;
       }
 

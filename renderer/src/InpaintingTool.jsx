@@ -12,7 +12,6 @@ const InpaintingTool = forwardRef(({
   displaySize,
   children
 }, ref) => {
-  // isInpaintMode ahora es siempre true
   const [isInpaintMode, setIsInpaintMode] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState(26);
@@ -21,6 +20,9 @@ const InpaintingTool = forwardRef(({
   const [originalImageBackup, setOriginalImageBackup] = useState(null);
   const [hasBackedUpOriginal, setHasBackedUpOriginal] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Add current image path tracking to detect image switches
+  const [currentImagePathRef, setCurrentImagePathRef] = useState(null);
 
   const lastPointRef = useRef(null);
   const drawTimeoutRef = useRef(null);
@@ -34,15 +36,14 @@ const InpaintingTool = forwardRef(({
     lastPointRef.current = null;
     setHasUnsavedChanges(false);
     isInpaintingInProgressRef.current = false;
+    setCurrentImagePathRef(null); // Reset path tracking
     if (drawTimeoutRef.current) {
       clearTimeout(drawTimeoutRef.current);
       drawTimeoutRef.current = null;
     }
-    // Ya no se cambia el modo, siempre está activo
-    // setIsInpaintMode(false); 
   };
 
-  // Exponer la función de reinicio al componente padre
+  // Expose the function of reset to parent component
   useImperativeHandle(ref, () => ({
     resetState,
     undoChanges,
@@ -51,13 +52,38 @@ const InpaintingTool = forwardRef(({
     resetUnsavedChanges: () => setHasUnsavedChanges(false)
   }));
 
-
+  // Reset state when image path changes (switching between thumbnails)
   useEffect(() => {
-    if (isInpaintMode && currentImage && !hasBackedUpOriginal) {
+    if (currentImagePath !== currentImagePathRef) {
+      console.log(`[INPAINT_DEBUG] Image path changed from ${currentImagePathRef} to ${currentImagePath}, resetting state`);
+      
+      // Clear any pending auto-apply
+      if (drawTimeoutRef.current) {
+        clearTimeout(drawTimeoutRef.current);
+        drawTimeoutRef.current = null;
+      }
+      
+      // Reset all inpainting state
+      setMaskPaths([]);
+      setIsDrawing(false);
+      lastPointRef.current = null;
+      setHasBackedUpOriginal(false);
+      setOriginalImageBackup(null);
+      setHasUnsavedChanges(false);
+      isInpaintingInProgressRef.current = false;
+      
+      setCurrentImagePathRef(currentImagePath);
+    }
+  }, [currentImagePath, currentImagePathRef]);
+
+  // Backup original image when starting to edit a new image
+  useEffect(() => {
+    if (isInpaintMode && currentImage && !hasBackedUpOriginal && currentImagePath) {
+      console.log(`[INPAINT_DEBUG] Backing up original image: ${currentImagePath}`);
       setOriginalImageBackup(currentImage);
       setHasBackedUpOriginal(true);
     }
-  }, [isInpaintMode, currentImage, hasBackedUpOriginal]);
+  }, [isInpaintMode, currentImage, hasBackedUpOriginal, currentImagePath]);
 
   const getCanvasCoordinates = (clientX, clientY) => {
     const canvas = mainCanvasRef.current;
@@ -128,12 +154,9 @@ const InpaintingTool = forwardRef(({
     // Restore canvas state
     ctx.restore();
 
-    // Actualizar el trazo actual.
-    // Es seguro mutar el último trazo directamente porque fue creado como un nuevo array en startDrawing.
-    // Esto evita problemas de estado obsoleto (stale state) durante eventos rápidos de mousemove.
+    // Update current stroke - safe to mutate last stroke directly
     if (maskPaths.length > 0) {
       maskPaths[maskPaths.length - 1].push(coords);
-      // console.log(`[INPAINT_DEBUG] draw: Añadiendo punto. Puntos en el último trazo: ${maskPaths[maskPaths.length - 1].length}`); // Log muy verboso, descomentar si es necesario
     }
 
     lastPointRef.current = coords;
@@ -157,7 +180,7 @@ const InpaintingTool = forwardRef(({
   const clearMask = () => {
     setMaskPaths([]);
     
-    // Redibujar imagen limpia
+    // Redraw clean image
     if (currentImage && mainCanvasRef.current) {
       displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor);
     }
@@ -171,24 +194,26 @@ const InpaintingTool = forwardRef(({
 
   const undoChanges = () => {
     if (originalImageBackup && hasBackedUpOriginal && !isInpaintingInProgressRef.current) {
+      console.log(`[INPAINT_DEBUG] undoChanges: Restoring original image for path: ${currentImagePath}`);
       
-      // CRUCIAL: Limpiar completamente PRIMERO
+      // Clear state FIRST
       setMaskPaths([]);
       setIsDrawing(false);
       lastPointRef.current = null;
       
-      // Limpiar timeout
+      // Clear timeout
       if (drawTimeoutRef.current) {
         clearTimeout(drawTimeoutRef.current);
         drawTimeoutRef.current = null;
       }
       
-      // Restaurar imagen original - IMPORTANTE: usar una función especial que NO dispare guardado
-      // Notificamos al padre para que actualice su estado y se redibuje todo correctamente.
+      // Restore original image - notify parent to update state
       onImageUpdateFromInpaint(originalImageBackup);
 
-      // Forzar el redibujado inmediato del canvas con la imagen original restaurada.
+      // Force immediate redraw with restored image
       displayImageHelper(originalImageBackup, mainCanvasRef.current, zoomFactor);
+      
+      // Don't reset backup state - allow multiple undos
     }
   };
 
@@ -202,9 +227,7 @@ const InpaintingTool = forwardRef(({
     isInpaintingInProgressRef.current = true;
 
     try {
-      // --- INICIO DE LA CORRECCIÓN ---
-      // Volver a dibujar todos los trazos en el lienzo principal antes de procesar.
-      // Esto es crucial porque otras actualizaciones de estado pueden haber limpiado el lienzo.
+      // Redraw all strokes on main canvas before processing
       const mainCtx = mainCanvasRef.current.getContext('2d');
       mainCtx.save();
       mainCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
@@ -223,7 +246,6 @@ const InpaintingTool = forwardRef(({
       });
 
       mainCtx.restore();
-      // --- FIN DE LA CORRECCIÓN ---
 
       // Create a temporary mask image with original image dimensions
       const tempMaskCanvas = document.createElement('canvas');
@@ -281,16 +303,16 @@ const InpaintingTool = forwardRef(({
       const result = await window.electronAPI.processInpainting(currentImagePath, maskDataUrl);
       
       if (result.success) {
-        // La imagen procesada ahora viene como base64
         const img = new Image();
         img.onload = () => {
-           // 1. Notificar al componente padre para que actualice la imagen en el estado.
-          //    Esto asegura que el resto de la app (zoom, etc.) use la imagen correcta.
+          // Notify parent component to update image state
           onImageUpdateFromInpaint(img);
-          // 2. Forzar el redibujado inmediato del canvas con la nueva imagen.
           setHasUnsavedChanges(true);
-          //    Esto soluciona el problema de que el canvas no se actualice a tiempo.
+          // Force immediate redraw with new image
           displayImageHelper(img, mainCanvasRef.current, zoomFactor);
+          
+          // Clear mask paths after successful inpainting
+          setMaskPaths([]);
         };
         img.onerror = () => {
           console.error('❌ [INPAINT] Error cargando la imagen procesada desde base64');
@@ -344,7 +366,7 @@ const InpaintingTool = forwardRef(({
     };
   }, []);
 
-  // Inyectar los controles de inpainting en los children
+  // Inject inpainting controls into children
   const childrenWithInpaintControls = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
       return React.cloneElement(child, {
