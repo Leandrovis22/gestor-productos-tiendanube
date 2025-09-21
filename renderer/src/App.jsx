@@ -137,14 +137,26 @@ const TiendaNubeProductManager = () => {
   };
 
   const saveCurrentImageIfEdited = async () => {
+    // Add validation to ensure we're saving the correct image
     if (currentImage && currentImagePath && inpaintingToolRef.current?.hasUnsavedChanges()) {
+      console.log(`[MAIN_DEBUG] saveCurrentImageIfEdited: Saving changes for image: ${currentImagePath}`);
       await saveImageFromState(currentImage, currentImagePath);
       inpaintingToolRef.current.resetUnsavedChanges();
+    } else {
+      console.log(`[MAIN_DEBUG] saveCurrentImageIfEdited: No unsaved changes to save`);
     }
   };
 
   const switchToProductImage = async (targetImageName) => {
     if (!workingDirectory || !targetImageName) return;
+
+    // Don't switch if we're already on this image
+    if (currentDisplayedImage === targetImageName) {
+      console.log(`[MAIN_DEBUG] switchToProductImage: Already displaying ${targetImageName}`);
+      return;
+    }
+
+    console.log(`[MAIN_DEBUG] switchToProductImage: Switching from ${currentDisplayedImage} to ${targetImageName}`);
 
     try {
       await saveCurrentImageIfEdited();
@@ -158,16 +170,25 @@ const TiendaNubeProductManager = () => {
   const loadImageOnly = async (imagePath, filename) => {
     if (!window.electronAPI) return;
 
+    // Prevent concurrent image loads
+    if (loadingImageRef.current === filename) {
+      console.log(`[MAIN_DEBUG] loadImageOnly: Already loading ${filename}, skipping`);
+      return;
+    }
+
     loadingImageRef.current = filename;
+    console.log(`[MAIN_DEBUG] loadImageOnly: Loading ${filename}`);
 
     try {
       const exists = await window.electronAPI.fileExists(imagePath);
       if (!exists) {
         console.error('Image file does not exist:', imagePath);
+        loadingImageRef.current = null;
         return;
       }
       // Si la imagen que se va a cargar no es la que se está cargando actualmente, detener.
       if (loadingImageRef.current !== filename) {
+        console.log(`[MAIN_DEBUG] loadImageOnly: Load cancelled for ${filename}`);
         return;
       }
 
@@ -175,18 +196,27 @@ const TiendaNubeProductManager = () => {
 
       const img = new Image();
       img.onload = () => {
-        setCurrentImage(img);
-        setCurrentDisplayedImage(filename);
-        setCurrentImagePath(imagePath);
-        setZoomFactor(1.0);
-        setTimeout(() => displayImage(img), 100);
+        // Final check before setting state
+        if (loadingImageRef.current === filename) {
+          console.log(`[MAIN_DEBUG] loadImageOnly: Successfully loaded ${filename}`);
+          setCurrentImage(img);
+          setCurrentDisplayedImage(filename);
+          setCurrentImagePath(imagePath);
+          setZoomFactor(1.0);
+          setTimeout(() => displayImage(img), 100);
+          loadingImageRef.current = null;
+        } else {
+          console.log(`[MAIN_DEBUG] loadImageOnly: Load completed but was superseded for ${filename}`);
+        }
       };
       img.onerror = (error) => {
         console.error('Error loading image:', error);
+        loadingImageRef.current = null;
       };
       img.src = imageData;
     } catch (error) {
       console.error('Error loading image only:', error);
+      loadingImageRef.current = null;
     }
   };
 
@@ -359,10 +389,19 @@ const TiendaNubeProductManager = () => {
       return;
     }
 
+    console.log(`[MAIN_DEBUG] loadCurrentProduct: Loading product ${filename}, isNewProduct: ${isNewProduct}`);
+
     try {
       updateThumbnails(filename);
 
       const imagePath = await window.electronAPI.joinPaths(workingDirectory, filename);
+      
+      // Reset inpainting state when loading a new product
+      if (isNewProduct && inpaintingToolRef.current) {
+        console.log(`[MAIN_DEBUG] loadCurrentProduct: Resetting inpainting state for new product`);
+        inpaintingToolRef.current.resetState();
+      }
+      
       await loadImageOnly(imagePath, filename);
 
       if (isNewProduct) {
@@ -462,9 +501,14 @@ const TiendaNubeProductManager = () => {
   const nextProduct = async () => {
     if (!imageQueue.length) return;
 
+    console.log(`[MAIN_DEBUG] nextProduct: Processing product with images: ${currentProductAllImages.join(', ')}`);
+
+    // Save any changes to current image before processing
     await saveCurrentImageIfEdited();
-    // Reiniciar el estado de inpainting
+    
+    // Reset inpainting state completely
     if (inpaintingToolRef.current) {
+      console.log(`[MAIN_DEBUG] nextProduct: Resetting inpainting state`);
       inpaintingToolRef.current.resetState();
     }
 
@@ -513,10 +557,15 @@ const TiendaNubeProductManager = () => {
       return;
     }
 
-    // Reiniciar el estado de inpainting
+    console.log(`[MAIN_DEBUG] skipProduct: Skipping product with images: ${currentProductAllImages.join(', ')}`);
+
+    // Reset inpainting state completely
     if (inpaintingToolRef.current) {
+      console.log(`[MAIN_DEBUG] skipProduct: Resetting inpainting state`);
       inpaintingToolRef.current.resetState();
     }
+
+    // ... rest of skipProduct function remains the same
 
     try {
       for (const filename of currentProductAllImages) {
@@ -818,13 +867,16 @@ const TiendaNubeProductManager = () => {
   };
 
   const handleInpaintingImageUpdate = (img) => {
-    isInpaintingUpdateRef.current = true; // marcar que la actualización viene de inpainting
+    // More robust image update handling
+    console.log(`[MAIN_DEBUG] handleInpaintingImageUpdate: Updating current image for path: ${currentImagePath}`);
+    
+    isInpaintingUpdateRef.current = true;
     setCurrentImage(img);
-    // InpaintingTool ya se encarga de redibujar. Forzar otro redibujado aquí
-    // puede causar parpadeos o limpiar el canvas.
-    // La siguiente línea es ahora manejada por el propio InpaintingTool.
-    // setTimeout(() => displayImage(img), 50); 
-    setTimeout(() => { isInpaintingUpdateRef.current = false; }, 100);
+    
+    // The InpaintingTool handles its own redrawing, so we don't need to force another redraw here
+    setTimeout(() => { 
+      isInpaintingUpdateRef.current = false; 
+    }, 100);
   };
 
   if (activeTab === 'combinar') {
