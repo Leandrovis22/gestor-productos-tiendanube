@@ -51,12 +51,10 @@ export const useImageManager = () => {
 
     // Prevent concurrent image loads
     if (loadingImageRef.current === filename) {
-      console.log(`[IMAGE_DEBUG] loadImageOnly: Already loading ${filename}, skipping`);
       return;
     }
 
     loadingImageRef.current = filename;
-    console.log(`[IMAGE_DEBUG] loadImageOnly: Loading ${filename}`);
 
     try {
       const exists = await window.electronAPI.fileExists(imagePath);
@@ -68,7 +66,6 @@ export const useImageManager = () => {
 
       // Si la imagen que se va a cargar no es la que se está cargando actualmente, detener.
       if (loadingImageRef.current !== filename) {
-        console.log(`[IMAGE_DEBUG] loadImageOnly: Load cancelled for ${filename}`);
         return;
       }
 
@@ -78,15 +75,12 @@ export const useImageManager = () => {
       img.onload = () => {
         // Final check before setting state
         if (loadingImageRef.current === filename) {
-          console.log(`[IMAGE_DEBUG] loadImageOnly: Successfully loaded ${filename}`);
           setCurrentImage(img);
           setCurrentDisplayedImage(filename);
           setCurrentImagePath(imagePath);
           setZoomFactor(1.0);
           setTimeout(() => displayImage(img), 100);
           loadingImageRef.current = null;
-        } else {
-          console.log(`[IMAGE_DEBUG] loadImageOnly: Load completed but was superseded for ${filename}`);
         }
       };
       img.onerror = (error) => {
@@ -128,11 +122,8 @@ export const useImageManager = () => {
 
     // Don't switch if we're already on this image
     if (currentDisplayedImage === targetImageName) {
-      console.log(`[IMAGE_DEBUG] switchToProductImage: Already displaying ${targetImageName}`);
       return;
     }
-
-    console.log(`[IMAGE_DEBUG] switchToProductImage: Switching from ${currentDisplayedImage} to ${targetImageName}`);
 
     try {
       await saveCurrentImageIfEdited();
@@ -146,11 +137,8 @@ export const useImageManager = () => {
   // Guardar imagen actual si fue editada
   const saveCurrentImageIfEdited = async () => {
     if (currentImage && currentImagePath && inpaintingToolRef.current?.hasUnsavedChanges()) {
-      console.log(`[IMAGE_DEBUG] saveCurrentImageIfEdited: Saving changes for image: ${currentImagePath}`);
       await saveImageFromState(currentImage, currentImagePath);
       inpaintingToolRef.current.resetUnsavedChanges();
-    } else {
-      console.log(`[IMAGE_DEBUG] saveCurrentImageIfEdited: No unsaved changes to save`);
     }
   };
 
@@ -170,7 +158,6 @@ export const useImageManager = () => {
 
   // Manejar actualización de imagen desde inpainting
   const handleInpaintingImageUpdate = (img) => {
-    console.log(`[IMAGE_DEBUG] handleInpaintingImageUpdate: Updating current image for path: ${currentImagePath}`);
     
     isInpaintingUpdateRef.current = true;
     setCurrentImage(img);
@@ -182,7 +169,6 @@ export const useImageManager = () => {
 
   // Reset completo del estado de imagen
   const resetImageState = () => {
-    console.log(`[IMAGE_DEBUG] resetImageState: Resetting inpainting state`);
     if (inpaintingToolRef.current) {
       inpaintingToolRef.current.resetState();
     }
@@ -196,8 +182,6 @@ export const useImageManager = () => {
       console.error('Missing filename or working directory');
       return;
     }
-
-    console.log(`[IMAGE_DEBUG] loadCurrentProduct: Loading product ${filename}, isNewProduct: ${isNewProduct}`);
 
     try {
       updateThumbnails(filename);

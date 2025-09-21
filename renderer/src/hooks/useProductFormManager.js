@@ -68,10 +68,6 @@ export const useProductFormManager = () => {
     setSelectedCategories([]);
 
     if (row) {
-      console.log('Loading product data:', row);
-      console.log('precio:', row.precio);
-      console.log('descripcion:', row.descripcion);
-      console.log('categorias:', row.categorias);
 
       setProductName(row.descripcion || '');
       setProductPrice(row.precio?.replace('$', '').replace(',', '.') || '');

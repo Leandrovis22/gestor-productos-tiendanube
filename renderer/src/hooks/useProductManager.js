@@ -206,7 +206,6 @@ export const useProductManager = () => {
     if (!outputCsvPath || !imageQueue.length || !currentMainProductImage) return;
 
     if (savedImages.has(currentMainProductImage)) {
-      console.log(`Producto ${currentMainProductImage} ya fue guardado.`);
       return;
     }
 
@@ -245,8 +244,6 @@ export const useProductManager = () => {
   // Pasar al siguiente producto
   const nextProduct = async (onImageReset, onFormReset) => {
     if (!imageQueue.length) return;
-
-    console.log(`[MAIN_DEBUG] nextProduct: Processing product with images: ${currentProductAllImages.join(', ')}`);
 
     // Reset states
     if (onImageReset) onImageReset();
@@ -296,8 +293,6 @@ export const useProductManager = () => {
       alert('Este producto ya ha sido guardado y no puede ser saltado.');
       return;
     }
-
-    console.log(`[MAIN_DEBUG] skipProduct: Skipping product with images: ${currentProductAllImages.join(', ')}`);
 
     // Reset states
     if (onImageReset) onImageReset();

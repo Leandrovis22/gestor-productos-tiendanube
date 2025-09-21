@@ -240,7 +240,6 @@ ipcMain.handle('update-product-in-resultado', async (event, resultadoPath, prima
     // Check if file exists
     const exists = await fs.access(resultadoPath).then(() => true).catch(() => false);
     if (!exists) {
-      console.log('resultado.csv does not exist yet, skipping update');
       return { success: true };
     }
 

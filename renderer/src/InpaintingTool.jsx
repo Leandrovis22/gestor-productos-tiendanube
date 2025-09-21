@@ -55,8 +55,6 @@ const InpaintingTool = forwardRef(({
   // Reset state when image path changes (switching between thumbnails)
   useEffect(() => {
     if (currentImagePath !== currentImagePathRef) {
-      console.log(`[INPAINT_DEBUG] Image path changed from ${currentImagePathRef} to ${currentImagePath}, resetting state`);
-      
       // Clear any pending auto-apply
       if (drawTimeoutRef.current) {
         clearTimeout(drawTimeoutRef.current);
@@ -79,7 +77,6 @@ const InpaintingTool = forwardRef(({
   // Backup original image when starting to edit a new image
   useEffect(() => {
     if (isInpaintMode && currentImage && !hasBackedUpOriginal && currentImagePath) {
-      console.log(`[INPAINT_DEBUG] Backing up original image: ${currentImagePath}`);
       setOriginalImageBackup(currentImage);
       setHasBackedUpOriginal(true);
     }
@@ -115,7 +112,6 @@ const InpaintingTool = forwardRef(({
     // Start a new path
     const newPath = [coords];
     setMaskPaths(prev => [...prev, newPath]);
-    console.log(`[INPAINT_DEBUG] startDrawing: Nuevo trazo añadido. Total de trazos: ${maskPaths.length + 1}`);
     
     // Clear any pending auto-apply
     if (drawTimeoutRef.current) {
@@ -170,7 +166,6 @@ const InpaintingTool = forwardRef(({
     
     // Auto-apply inpainting after a short delay
     if (maskPaths.length > 0) {
-      console.log(`[INPAINT_DEBUG] stopDrawing: Se va a procesar con ${maskPaths.length} trazos.`);
       drawTimeoutRef.current = setTimeout(() => {
         processInpainting();
       }, 300);
@@ -194,7 +189,6 @@ const InpaintingTool = forwardRef(({
 
   const undoChanges = () => {
     if (originalImageBackup && hasBackedUpOriginal && !isInpaintingInProgressRef.current) {
-      console.log(`[INPAINT_DEBUG] undoChanges: Restoring original image for path: ${currentImagePath}`);
       
       // Clear state FIRST
       setMaskPaths([]);
@@ -222,7 +216,6 @@ const InpaintingTool = forwardRef(({
       return;
     }
 
-    console.log(`[INPAINT_DEBUG] processInpainting: Iniciando proceso con ${maskPaths.length} trazos.`);
     setIsProcessing(true);
     isInpaintingInProgressRef.current = true;
 
@@ -299,7 +292,6 @@ const InpaintingTool = forwardRef(({
       const maskDataUrl = tempMaskCanvas.toDataURL('image/png');
       
       // Call the inpainting function
-      console.log('[INPAINT_DEBUG] processInpainting: Llamando a electronAPI.processInpainting...');
       const result = await window.electronAPI.processInpainting(currentImagePath, maskDataUrl);
       
       if (result.success) {
@@ -316,7 +308,6 @@ const InpaintingTool = forwardRef(({
           alert('Error al cargar la imagen procesada.');
         };
 
-        console.log('[INPAINT_DEBUG] processInpainting: Inpainting exitoso. Actualizando imagen.');
         img.src = result.imageData;
       } else {
         // If inpainting fails, redraw the current image to clear any temporary strokes

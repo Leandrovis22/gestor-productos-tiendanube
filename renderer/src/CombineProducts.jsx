@@ -9,7 +9,6 @@ const InlineLocalImage = ({ path, alt, className }) => {
       const resolvedPath = await Promise.resolve(path);
       if (window.electronAPI && resolvedPath) {
         try {
-          console.log('🔍 Intentando cargar imagen desde:', resolvedPath); // DEBUG
           const imageData = await window.electronAPI.loadImage(resolvedPath);
           if (isMounted && imageData) { // Verificar que imageData no sea null
             setSrc(imageData);
