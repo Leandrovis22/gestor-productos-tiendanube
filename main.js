@@ -229,6 +229,16 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
   }
 });
 
+ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
+  try {
+    await fs.appendFile(filePath, data, encoding);
+    return { success: true };
+  } catch (error) {
+    console.error('Error appending to file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('move-file', async (event, sourcePath, destPath) => {
   try {
     await fs.mkdir(path.dirname(destPath), { recursive: true });
@@ -306,8 +316,6 @@ ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr
     return { success: false, error: error.message };
   }
 });
-
-//Image manipulation root main.js
 
 
 
