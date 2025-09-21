@@ -1,4 +1,4 @@
-// preload.js
+// preload.js - Updated with inpainting functionality
 
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -16,9 +16,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
   createDirectory: (dirPath) => ipcRenderer.invoke('create-directory', dirPath),
   listFiles: (dirPath, extensions) => ipcRenderer.invoke('list-files', dirPath, extensions),
-  processInpainting: (imagePath, maskData) => ipcRenderer.invoke('process-inpainting', imagePath, maskData),
   saveImageUrlMapping: (csvPath, urlId, imagesStr) => ipcRenderer.invoke('save-image-url-mapping', csvPath, urlId, imagesStr),
   
   saveEditedImage: (originalPath, editedImageData) => ipcRenderer.invoke('save-edited-image', originalPath, editedImageData),
-  processInpaintingBackend: (imagePath, maskData) => ipcRenderer.invoke('process-inpainting-backend', imagePath, maskData),
+  
+  // New inpainting methods
+  processInpainting: (imagePath, maskDataUrl) => ipcRenderer.invoke('process-inpainting', imagePath, maskDataUrl),
+  checkPythonDependencies: () => ipcRenderer.invoke('check-python-dependencies'),
 });

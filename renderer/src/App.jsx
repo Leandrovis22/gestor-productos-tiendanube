@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import CombineProducts from './CombineProducts';
-import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { generateUrlId, displayImage as displayImageHelper } from './helpers';
 import InpaintingTool from './InpaintingTool';
+import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 const ProductThumbnailImage = ({ path, alt, className }) => {
   const [src, setSrc] = useState('');
@@ -657,52 +657,16 @@ const TiendaNubeProductManager = () => {
   };
 
 
-// Fixed displayImage function - eliminates black borders and maintains proper scaling
-const displayImage = (img) => {
+  // Fixed displayImage function - eliminates black borders and maintains proper scaling
+  const displayImage = (img) => {
     const canvas = canvasRef.current;
     if (!canvas || !img) return;
 
     const { width, height, x, y } = displayImageHelper(img, canvas, zoomFactor);
     setDisplaySize({ width, height }); // Needed for coordinate mapping
     setDisplayOffset({ x, y }); // Needed for coordinate mapping
-};
-
-
-
-// Fixed coordinate mapping function
-const getImageCoordinates = (clientX, clientY) => {
-  const canvas = canvasRef.current;
-  if (!canvas || !currentImage) return null;
-
-  const rect = canvas.getBoundingClientRect();
-  
-  // Get mouse position relative to canvas
-  const mouseX = clientX - rect.left;
-  const mouseY = clientY - rect.top;
-
-  // Check if mouse is within the actual image bounds
-  if (mouseX < displayOffset.x || mouseX > displayOffset.x + displaySize.width ||
-      mouseY < displayOffset.y || mouseY > displayOffset.y + displaySize.height) {
-    return null; // Outside image bounds
-  }
-
-  // Convert to image coordinates
-  const scale = Math.min(rect.width / currentImage.width, rect.height / currentImage.height) * zoomFactor;
-  const imageX = (mouseX - displayOffset.x) / scale;
-  const imageY = (mouseY - displayOffset.y) / scale;
-
-  // Clamp to image bounds
-  const clampedX = Math.max(0, Math.min(currentImage.width - 1, imageX));
-  const clampedY = Math.max(0, Math.min(currentImage.height - 1, imageY));
-
-  return {
-    imageX: clampedX,
-    imageY: clampedY,
-    canvasX: mouseX,
-    canvasY: mouseY
   };
 
-};
   const restartApp = () => {
     setCsvData([]);
     setCsvPath('');

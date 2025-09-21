@@ -6,6 +6,9 @@ const fs = require('fs').promises;
 const Papa = require('papaparse');
 const sharp = require('sharp');
 
+const { spawn } = require('child_process');
+const os = require('os');
+
 let mainWindow;
 
 function createWindow() {
@@ -362,47 +365,77 @@ ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData)
   }
 });
 
-// Handler opcional para procesamiento de inpainting en el backend
-// (alternativa si quieres que el procesamiento sea server-side)
-ipcMain.handle('process-inpainting-backend', async (event, imagePath, maskData) => {
+// Add these handlers to your existing main.js file
+// Place them before the app.whenReady() line
+// Also add these imports at the top of your main.js:
+// const { spawn } = require('child_process');
+// const os = require('os');
+
+// Handler for processing inpainting with OpenCV Python script
+ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
   try {
-    // Leer imagen original
-    const imageBuffer = await fs.readFile(imagePath);
-    const image = sharp(imageBuffer);
-    const { width, height, channels } = await image.metadata();
+    // Create temporary directory for processing
+    const tempDir = path.join(os.tmpdir(), 'inpainting_temp');
+    await fs.mkdir(tempDir, { recursive: true });
     
-    // Obtener datos raw de la imagen
-    const rawImageData = await image.raw().toBuffer();
+    // Generate unique filenames for this operation
+    const timestamp = Date.now();
+    const tempImagePath = path.join(tempDir, `temp_image_${timestamp}.jpg`);
+    const tempMaskPath = path.join(tempDir, `temp_mask_${timestamp}.png`);
+    const tempOutputPath = path.join(tempDir, `temp_output_${timestamp}.jpg`);
     
-    // Procesar máscara
-    const maskBase64 = maskData.split(',')[1];
-    const maskBuffer = Buffer.from(maskBase64, 'base64');
+    // Copy original image to temp location
+    await fs.copyFile(imagePath, tempImagePath);
     
-    // Redimensionar máscara si es necesario
-    const processedMask = await sharp(maskBuffer)
-      .resize(width, height)
-      .greyscale()
-      .raw()
-      .toBuffer();
+    // Save mask from base64 to file
+    const base64Data = maskDataUrl.replace(/^data:image\/png;base64,/, '');
+    const maskBuffer = Buffer.from(base64Data, 'base64');
+    await fs.writeFile(tempMaskPath, maskBuffer);
     
-    // Aplicar inpainting simple
-    const result = simpleInpaintingBackend(rawImageData, processedMask, width, height, channels);
+    // Determine Python script path (should be in the same directory as main.js)
+    const scriptPath = path.join(__dirname, 'inpaint.py');
     
-    // Convertir resultado a imagen
-    const outputImage = await sharp(result, {
-      raw: { width, height, channels }
-    }).png().toBuffer();
+    // Check if Python script exists
+    try {
+      await fs.access(scriptPath);
+    } catch (error) {
+      throw new Error(`Python script not found at ${scriptPath}. Please ensure inpaint.py is in the app directory.`);
+    }
     
-    // Convertir a base64 para enviar al frontend
-    const base64Result = `data:image/png;base64,${outputImage.toString('base64')}`;
+    // Execute Python inpainting script
+    const pythonResult = await runPythonInpainting(scriptPath, tempImagePath, tempMaskPath, tempOutputPath);
+    
+    if (!pythonResult.success) {
+      throw new Error(pythonResult.error || 'Python inpainting script failed');
+    }
+    
+    // Check if output file was created
+    try {
+      await fs.access(tempOutputPath);
+    } catch (error) {
+      throw new Error('Inpainting output file was not created');
+    }
+    
+    // Replace original image with processed result
+    await fs.copyFile(tempOutputPath, imagePath);
+    
+    // Cleanup temporary files
+    try {
+      await fs.unlink(tempImagePath);
+      await fs.unlink(tempMaskPath);
+      await fs.unlink(tempOutputPath);
+      await fs.rmdir(tempDir);
+    } catch (cleanupError) {
+      console.warn('Warning: Could not clean up temporary files:', cleanupError.message);
+    }
     
     return {
       success: true,
-      imageData: base64Result
+      message: 'Inpainting completed successfully'
     };
     
   } catch (error) {
-    console.error('Error en inpainting backend:', error);
+    console.error('Error processing inpainting:', error);
     return {
       success: false,
       error: error.message
@@ -410,61 +443,150 @@ ipcMain.handle('process-inpainting-backend', async (event, imagePath, maskData) 
   }
 });
 
-// Algoritmo de inpainting simple para el backend
-function simpleInpaintingBackend(imageData, maskData, width, height, channels = 3) {
-  const result = Buffer.from(imageData);
-  const iterations = 5;
-  
-  for (let iter = 0; iter < iterations; iter++) {
-    const newData = Buffer.from(result);
+// Helper function to run Python inpainting script
+function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius = 3) {
+  return new Promise((resolve) => {
+    // Try different Python commands
+    const pythonCommands = ['python3', 'python', 'py'];
+    let currentCommandIndex = 0;
     
-    for (let y = 1; y < height - 1; y++) {
-      for (let x = 1; x < width - 1; x++) {
-        const pixelIndex = (y * width + x) * channels;
-        const maskIndex = y * width + x;
-        
-        // Si este pixel necesita inpainting (máscara > 128)
-        if (maskData[maskIndex] > 128) {
-          let totalR = 0, totalG = 0, totalB = 0;
-          let validNeighbors = 0;
-          
-          // Verificar vecinos 3x3
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              if (dx === 0 && dy === 0) continue;
-              
-              const nx = x + dx;
-              const ny = y + dy;
-              
-              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                const neighborPixelIndex = (ny * width + nx) * channels;
-                const neighborMaskIndex = ny * width + nx;
-                
-                // Solo usar vecinos que no necesitan inpainting
-                if (maskData[neighborMaskIndex] <= 128) {
-                  totalR += result[neighborPixelIndex];
-                  totalG += result[neighborPixelIndex + 1];
-                  totalB += result[neighborPixelIndex + 2];
-                  validNeighbors++;
-                }
-              }
-            }
-          }
-          
-          // Si hay vecinos válidos, promediar
-          if (validNeighbors > 0) {
-            newData[pixelIndex] = Math.round(totalR / validNeighbors);
-            newData[pixelIndex + 1] = Math.round(totalG / validNeighbors);
-            newData[pixelIndex + 2] = Math.round(totalB / validNeighbors);
-          }
-        }
+    function tryNextCommand() {
+      if (currentCommandIndex >= pythonCommands.length) {
+        resolve({
+          success: false,
+          error: 'No working Python interpreter found. Please install Python and ensure it\'s in PATH.'
+        });
+        return;
       }
+      
+      const pythonCmd = pythonCommands[currentCommandIndex];
+      const args = [scriptPath, imagePath, maskPath, outputPath, radius.toString()];
+      
+      const pythonProcess = spawn(pythonCmd, args, {
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve({
+            success: true,
+            output: stdout
+          });
+        } else {
+          console.log(`Python command '${pythonCmd}' failed with code ${code}`);
+          console.log('STDOUT:', stdout);
+          console.log('STDERR:', stderr);
+          
+          // If this command failed, try the next one
+          currentCommandIndex++;
+          tryNextCommand();
+        }
+      });
+      
+      pythonProcess.on('error', (error) => {
+        console.log(`Error executing '${pythonCmd}':`, error.message);
+        // If this command errored, try the next one
+        currentCommandIndex++;
+        tryNextCommand();
+      });
     }
     
-    result.set(newData);
+    tryNextCommand();
+  });
+}
+
+// Handler to check if Python and required packages are available
+ipcMain.handle('check-python-dependencies', async () => {
+  try {
+    const result = await checkPythonAndPackages();
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
   }
-  
-  return result;
+});
+
+// Helper function to check Python dependencies
+function checkPythonAndPackages() {
+  return new Promise((resolve) => {
+    const pythonCommands = ['python3', 'python', 'py'];
+    let results = [];
+    let completed = 0;
+    
+    pythonCommands.forEach((cmd) => {
+      const pythonProcess = spawn(cmd, ['-c', 'import cv2, numpy; print("OK")'], {
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        results.push({
+          command: cmd,
+          success: code === 0 && stdout.trim() === 'OK',
+          output: stdout,
+          error: stderr
+        });
+        
+        completed++;
+        if (completed === pythonCommands.length) {
+          const workingResult = results.find(r => r.success);
+          if (workingResult) {
+            resolve({
+              success: true,
+              pythonCommand: workingResult.command,
+              message: `Python dependencies OK (using ${workingResult.command})`
+            });
+          } else {
+            resolve({
+              success: false,
+              error: 'Python or required packages (opencv-python, numpy) not found. Please install them.',
+              details: results
+            });
+          }
+        }
+      });
+      
+      pythonProcess.on('error', (error) => {
+        results.push({
+          command: cmd,
+          success: false,
+          error: error.message
+        });
+        
+        completed++;
+        if (completed === pythonCommands.length) {
+          resolve({
+            success: false,
+            error: 'No working Python interpreter found.',
+            details: results
+          });
+        }
+      });
+    });
+  });
 }
 
 // Handler para obtener información detallada de una imagen
