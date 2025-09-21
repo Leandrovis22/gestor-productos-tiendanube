@@ -135,10 +135,18 @@ const TiendaNubeProductManager = () => {
     setCurrentProductAllImages([...new Set(allImagesForProduct)]);
   };
 
+  const saveCurrentImageIfEdited = async () => {
+    if (currentImage && currentImagePath && inpaintingToolRef.current?.hasUnsavedChanges()) {
+      await saveImageFromState(currentImage, currentImagePath);
+      inpaintingToolRef.current.resetUnsavedChanges();
+    }
+  };
+
   const switchToProductImage = async (targetImageName) => {
     if (!workingDirectory || !targetImageName) return;
 
     try {
+      await saveCurrentImageIfEdited();
       const imagePath = await window.electronAPI.joinPaths(workingDirectory, targetImageName);
       await loadImageOnly(imagePath, targetImageName);
     } catch (error) {
@@ -447,12 +455,7 @@ const TiendaNubeProductManager = () => {
   const nextProduct = async () => {
     if (!imageQueue.length) return;
 
-    // Guardar la imagen actual ANTES de moverla
-    // Si la imagen fue editada (inpainting), currentImage tendrá la versión editada.
-    if (currentImage && currentImagePath) {
-      await saveImageFromState(currentImage, currentImagePath);
-    }
-    
+    await saveCurrentImageIfEdited();
     // Reiniciar el estado de inpainting
     if (inpaintingToolRef.current) {
       inpaintingToolRef.current.resetState();

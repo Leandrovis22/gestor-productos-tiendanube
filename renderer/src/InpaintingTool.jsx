@@ -20,6 +20,7 @@ const InpaintingTool = forwardRef(({
   const [isProcessing, setIsProcessing] = useState(false);
   const [originalImageBackup, setOriginalImageBackup] = useState(null);
   const [hasBackedUpOriginal, setHasBackedUpOriginal] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const lastPointRef = useRef(null);
   const drawTimeoutRef = useRef(null);
@@ -31,6 +32,7 @@ const InpaintingTool = forwardRef(({
     setOriginalImageBackup(null);
     setIsDrawing(false);
     lastPointRef.current = null;
+    setHasUnsavedChanges(false);
     isInpaintingInProgressRef.current = false;
     if (drawTimeoutRef.current) {
       clearTimeout(drawTimeoutRef.current);
@@ -44,7 +46,9 @@ const InpaintingTool = forwardRef(({
   useImperativeHandle(ref, () => ({
     resetState,
     undoChanges,
-    isProcessing
+    isProcessing,
+    hasUnsavedChanges: () => hasUnsavedChanges,
+    resetUnsavedChanges: () => setHasUnsavedChanges(false)
   }));
 
 
@@ -79,6 +83,7 @@ const InpaintingTool = forwardRef(({
     if (!coords) return;
 
     setIsDrawing(true);
+    setHasUnsavedChanges(true);
     lastPointRef.current = coords;
     
     // Start a new path
@@ -283,6 +288,7 @@ const InpaintingTool = forwardRef(({
           //    Esto asegura que el resto de la app (zoom, etc.) use la imagen correcta.
           onImageUpdateFromInpaint(img);
           // 2. Forzar el redibujado inmediato del canvas con la nueva imagen.
+          setHasUnsavedChanges(true);
           //    Esto soluciona el problema de que el canvas no se actualice a tiempo.
           displayImageHelper(img, mainCanvasRef.current, zoomFactor);
         };
