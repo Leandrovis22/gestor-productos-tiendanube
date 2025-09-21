@@ -10,10 +10,11 @@ const ProductThumbnailImage = ({ path, alt, className }) => {
   useEffect(() => {
     let isMounted = true;
     const loadImage = async () => {
-      if (window.electronAPI && path) {
+      const resolvedPath = await Promise.resolve(path);
+      if (window.electronAPI && resolvedPath) {
         try {
-          const imageData = await window.electronAPI.loadImage(path);
-          if (isMounted) {
+          const imageData = await window.electronAPI.loadImage(resolvedPath);
+          if (isMounted && imageData) {
             setSrc(imageData);
           }
         } catch (error) {
@@ -138,7 +139,7 @@ const TiendaNubeProductManager = () => {
     if (!workingDirectory || !targetImageName) return;
 
     try {
-      const imagePath = `${workingDirectory}/${targetImageName}`;
+      const imagePath = await window.electronAPI.joinPaths(workingDirectory, targetImageName);
       await loadImageOnly(imagePath, targetImageName);
     } catch (error) {
       console.error('Error switching to product image:', error);
@@ -291,7 +292,7 @@ const TiendaNubeProductManager = () => {
           ) || row.archivo;
 
           if (!seenMainImages.has(mainImage)) {
-            const imagePath = `${workingDirectory}/${mainImage}`;
+            const imagePath = await window.electronAPI.joinPaths(workingDirectory, mainImage);
             const exists = await window.electronAPI.fileExists(imagePath);
             if (exists && !processedImages.has(mainImage) && !saltadasImages.has(mainImage)) {
               imageFiles.push(mainImage);
@@ -346,7 +347,7 @@ const TiendaNubeProductManager = () => {
     try {
       updateThumbnails(filename);
 
-      const imagePath = `${workingDirectory}/${filename}`;
+      const imagePath = await window.electronAPI.joinPaths(workingDirectory, filename);
       await loadImageOnly(imagePath, filename);
 
       if (isNewProduct) {
@@ -410,7 +411,7 @@ const TiendaNubeProductManager = () => {
                 title={`${imgName} ${isCurrentlyDisplayed ? '(mostrando)' : ''}`}
               >
                 <ProductThumbnailImage
-                  path={`${workingDirectory}/${imgName}`}
+                  path={window.electronAPI.joinPaths(workingDirectory, imgName)}
                   alt={imgName}
                   className="w-16 h-16 object-cover rounded-sm"
                 />
@@ -456,8 +457,8 @@ const TiendaNubeProductManager = () => {
 
     if (window.electronAPI && workingDirectory) {
       for (const filename of currentProductAllImages) {
-        const sourcePath = `${workingDirectory}/${filename}`;
-        const destPath = `${workingDirectory}/procesadas/${filename}`;
+        const sourcePath = await window.electronAPI.joinPaths(workingDirectory, filename);
+        const destPath = await window.electronAPI.joinPaths(workingDirectory, 'procesadas', filename);
 
         try {
           const exists = await window.electronAPI.fileExists(sourcePath);
@@ -504,8 +505,8 @@ const TiendaNubeProductManager = () => {
 
     try {
       for (const filename of currentProductAllImages) {
-        const sourcePath = `${workingDirectory}/${filename}`;
-        const destPath = `${workingDirectory}/saltadas/${filename}`;
+        const sourcePath = await window.electronAPI.joinPaths(workingDirectory, filename);
+        const destPath = await window.electronAPI.joinPaths(workingDirectory, 'saltadas', filename);
 
         const exists = await window.electronAPI.fileExists(sourcePath);
         if (exists) {

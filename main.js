@@ -346,7 +346,7 @@ ipcMain.handle('append-file', async (event, filePath, data, encoding) => {
 
 ipcMain.handle('move-file', async (event, sourcePath, destPath) => {
   try {
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.mkdir(path.dirname(path.normalize(destPath)), { recursive: true });
     await fs.rename(sourcePath, destPath);
     return { success: true };
   } catch (error) {
@@ -357,7 +357,7 @@ ipcMain.handle('move-file', async (event, sourcePath, destPath) => {
 
 ipcMain.handle('copy-file', async (event, sourcePath, destPath) => {
   try {
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.mkdir(path.dirname(path.normalize(destPath)), { recursive: true });
     await fs.copyFile(sourcePath, destPath);
     return { success: true };
   } catch (error) {
@@ -368,7 +368,7 @@ ipcMain.handle('copy-file', async (event, sourcePath, destPath) => {
 
 ipcMain.handle('file-exists', async (event, filePath) => {
   try {
-    await fs.access(filePath);
+    await fs.access(path.normalize(filePath));
     return true;
   } catch {
     return false;
@@ -377,7 +377,7 @@ ipcMain.handle('file-exists', async (event, filePath) => {
 
 ipcMain.handle('create-directory', async (event, dirPath) => {
   try {
-    await fs.mkdir(dirPath, { recursive: true });
+    await fs.mkdir(path.normalize(dirPath), { recursive: true });
     return { success: true };
   } catch (error) {
     console.error('Error creating directory:', error);
@@ -387,7 +387,7 @@ ipcMain.handle('create-directory', async (event, dirPath) => {
 
 ipcMain.handle('list-files', async (event, dirPath, extensions) => {
   try {
-    const files = await fs.readdir(dirPath);
+    const files = await fs.readdir(path.normalize(dirPath));
     if (extensions) {
       const filteredFiles = files.filter(file => {
         const ext = path.extname(file).toLowerCase();
@@ -400,6 +400,10 @@ ipcMain.handle('list-files', async (event, dirPath, extensions) => {
     console.error('Error listing files:', error);
     return [];
   }
+});
+
+ipcMain.handle('join-paths', (event, ...paths) => {
+  return path.join(...paths);
 });
 
 ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr) => {
@@ -494,7 +498,7 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
     const tempOutputPath = path.join(tempDir, `temp_output_${timestamp}.jpg`);
     
     // Copy original image to temp location
-    await fs.copyFile(imagePath, tempImagePath);
+    await fs.copyFile(path.normalize(imagePath), tempImagePath);
     
     // Save mask from base64 to file
     const base64Data = maskDataUrl.replace(/^data:image\/png;base64,/, '');
@@ -731,7 +735,7 @@ ipcMain.handle('get-image-info', async (event, imagePath) => {
 ipcMain.handle('load-image', async (event, imagePath) => {
   try {
     // Verificar si el archivo existe primero
-    await fs.access(imagePath);
+    await fs.access(path.normalize(imagePath));
     
     const imageBuffer = await fs.readFile(imagePath);
     const base64 = imageBuffer.toString('base64');

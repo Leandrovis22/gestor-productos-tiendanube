@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
   createDirectory: (dirPath) => ipcRenderer.invoke('create-directory', dirPath),
   listFiles: (dirPath, extensions) => ipcRenderer.invoke('list-files', dirPath, extensions),
+  joinPaths: (...paths) => ipcRenderer.invoke('join-paths', ...paths),
   saveImageUrlMapping: (csvPath, urlId, imagesStr) => ipcRenderer.invoke('save-image-url-mapping', csvPath, urlId, imagesStr),
   
   saveEditedImage: (originalPath, editedImageData) => ipcRenderer.invoke('save-edited-image', originalPath, editedImageData),

@@ -6,11 +6,11 @@ const InlineLocalImage = ({ path, alt, className }) => {
   useEffect(() => {
     let isMounted = true;
     const loadImage = async () => {
-      if (window.electronAPI && path) {
+      const resolvedPath = await Promise.resolve(path);
+      if (window.electronAPI && resolvedPath) {
         try {
-          console.log('🔍 Intentando cargar imagen desde:', path); // DEBUG
-          console.log('🔍 Working directory:', workingDirectory); // DEBUG
-          const imageData = await window.electronAPI.loadImage(path);
+          console.log('🔍 Intentando cargar imagen desde:', resolvedPath); // DEBUG
+          const imageData = await window.electronAPI.loadImage(resolvedPath);
           if (isMounted && imageData) { // Verificar que imageData no sea null
             setSrc(imageData);
           }
@@ -61,8 +61,8 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
         // Filtrar solo imágenes que realmente existen en el disco
         const existingImages = [];
-        for (const img of allImages) {
-          const fullPath = `${workingDirectory}/${img}`;
+        for (const img of allImages) { // Usar path.join para construir la ruta
+          const fullPath = await window.electronAPI.joinPaths(workingDirectory, img);
           const exists = await window.electronAPI.fileExists(fullPath);
           if (exists) {
             existingImages.push(img);
@@ -256,7 +256,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
             onClick={() => toggleImageSelection(imageName)}
           >
             <InlineLocalImage
-              path={`${workingDirectory}/${imageName}`}
+              path={window.electronAPI.joinPaths(workingDirectory, imageName)}
               alt={imageName}
               className="w-full h-32 object-cover"
             />
@@ -302,7 +302,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                     >
                       <div className="flex-shrink-0">
                         <InlineLocalImage
-                          path={`${workingDirectory}/${group.imageName}`}
+                          path={window.electronAPI.joinPaths(workingDirectory, group.imageName)}
                           alt={group.imageName}
                           className="w-[10rem] h-[13rem] object-cover rounded-md"
                         />
