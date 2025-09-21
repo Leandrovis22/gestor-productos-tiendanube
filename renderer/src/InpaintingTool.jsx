@@ -19,31 +19,37 @@ const InpaintingTool = ({
   const [originalImageBackup, setOriginalImageBackup] = useState(null);
   const [hasBackedUpOriginal, setHasBackedUpOriginal] = useState(false);
 
-  const overlayCanvasRef = useRef(null);
   const lastPointRef = useRef(null);
   const drawTimeoutRef = useRef(null);
+  const isInpaintingInProgressRef = useRef(false);
 
-  // Setup overlay - no separate canvas needed
+  // LIMPIEZA COMPLETA cuando cambia la imagen
   useEffect(() => {
-    if (isInpaintMode && currentImage) {
-      // Clear any existing overlay
-      if (overlayCanvasRef.current) {
-        const ctx = overlayCanvasRef.current.getContext('2d');
-        ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
-      }
-    }
-  }, [isInpaintMode, currentImage, displayOffset, displaySize, zoomFactor]);
-
-  // Clear everything when switching images
-  useEffect(() => {
+    console.log('🔄 [INPAINT] Cambiando imagen, limpieza completa:', currentImagePath);
+    
+    // Limpiar todos los estados
     setMaskPaths([]);
     setHasBackedUpOriginal(false);
     setOriginalImageBackup(null);
+    setIsDrawing(false);
+    lastPointRef.current = null;
+    isInpaintingInProgressRef.current = false;
+    
+    // Limpiar timeout pendiente
+    if (drawTimeoutRef.current) {
+      clearTimeout(drawTimeoutRef.current);
+      drawTimeoutRef.current = null;
+    }
+    
+    // Salir de modo inpaint para evitar confusión
+    setIsInpaintMode(false);
+    
   }, [currentImagePath]);
 
-  // Create backup of original image when first entering inpaint mode
+  // Backup de imagen original al entrar en modo edición
   useEffect(() => {
     if (isInpaintMode && currentImage && !hasBackedUpOriginal) {
+      console.log('💾 [INPAINT] Haciendo backup de imagen original');
       setOriginalImageBackup(currentImage);
       setHasBackedUpOriginal(true);
     }
@@ -67,7 +73,7 @@ const InpaintingTool = ({
   };
 
   const startDrawing = (e) => {
-    if (!isInpaintMode) return;
+    if (!isInpaintMode || isInpaintingInProgressRef.current) return;
     
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords) return;
@@ -82,11 +88,12 @@ const InpaintingTool = ({
     // Clear any pending auto-apply
     if (drawTimeoutRef.current) {
       clearTimeout(drawTimeoutRef.current);
+      drawTimeoutRef.current = null;
     }
   };
 
   const draw = (e) => {
-    if (!isDrawing || !isInpaintMode) return;
+    if (!isDrawing || !isInpaintMode || isInpaintingInProgressRef.current) return;
     
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords || !lastPointRef.current) return;
@@ -128,7 +135,7 @@ const InpaintingTool = ({
   };
 
   const stopDrawing = () => {
-    if (!isDrawing) return;
+    if (!isDrawing || isInpaintingInProgressRef.current) return;
     
     setIsDrawing(false);
     lastPointRef.current = null;
@@ -137,82 +144,66 @@ const InpaintingTool = ({
     if (maskPaths.length > 0) {
       drawTimeoutRef.current = setTimeout(() => {
         processInpainting();
-      }, 300); // 300ms delay
+      }, 300);
     }
   };
 
   const clearMask = () => {
+    console.log('🧹 [INPAINT] Limpiando máscaras');
     setMaskPaths([]);
     
-    // Redraw the original image to clear overlay marks
+    // Redibujar imagen limpia
     if (currentImage && mainCanvasRef.current) {
-      const canvas = mainCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Redraw image
-      const { width, height, x, y } = displayImageHelper(currentImage, canvas, zoomFactor);
-      ctx.drawImage(currentImage, x, y, width, height);
+      displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor);
     }
     
     // Clear any pending auto-apply
     if (drawTimeoutRef.current) {
       clearTimeout(drawTimeoutRef.current);
+      drawTimeoutRef.current = null;
     }
   };
 
   const undoChanges = () => {
-    if (originalImageBackup && hasBackedUpOriginal) {
-      onImageSaved(originalImageBackup);
+    if (originalImageBackup && hasBackedUpOriginal && !isInpaintingInProgressRef.current) {
+      console.log('⏪ [INPAINT] Deshaciendo todos los cambios');
       
-      // IMPORTANTE: Limpiar completamente todos los paths y estado
+      // CRUCIAL: Limpiar completamente PRIMERO
       setMaskPaths([]);
-      setHasBackedUpOriginal(false);
-      setOriginalImageBackup(null);
+      setIsDrawing(false);
+      lastPointRef.current = null;
       
-      // Limpiar cualquier timeout pendiente
+      // Limpiar timeout
       if (drawTimeoutRef.current) {
         clearTimeout(drawTimeoutRef.current);
+        drawTimeoutRef.current = null;
       }
       
-      // Forzar re-render del canvas limpio
-      setTimeout(() => {
-        if (originalImageBackup && mainCanvasRef.current) {
-          displayImageHelper(originalImageBackup, mainCanvasRef.current, zoomFactor);
-        }
-      }, 50);
+      // Restaurar imagen original - IMPORTANTE: usar una función especial que NO dispare guardado
+      restoreImageOnly(originalImageBackup);
+      
+      // Reset backup state
+      setHasBackedUpOriginal(false);
+      setOriginalImageBackup(null);
     }
   };
 
-  // Local helper function to display image on canvas
-  const displayImage = (img, canvas, zoom = 1) => {
-    if (!img || !canvas) return { width: 0, height: 0, x: 0, y: 0 };
-    
-    const ctx = canvas.getContext('2d');
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-    
-    // Calculate scaling to fit image in canvas while maintaining aspect ratio
-    const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height) * zoom;
-    const width = img.width * scale;
-    const height = img.height * scale;
-    
-    // Center the image
-    const x = (canvasWidth - width) / 2;
-    const y = (canvasHeight - height) / 2;
-    
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    ctx.drawImage(img, x, y, width, height);
-    
-    return { width, height, x, y };
+  // Función especial para restaurar imagen sin disparar guardado automático
+  const restoreImageOnly = (img) => {
+    // Actualizar directamente el estado del componente padre sin llamar onImageSaved
+    if (mainCanvasRef.current) {
+      displayImageHelper(img, mainCanvasRef.current, zoomFactor);
+    }
   };
 
   const processInpainting = async () => {
-    if (!currentImagePath || !window.electronAPI || maskPaths.length === 0) {
+    if (!currentImagePath || !window.electronAPI || maskPaths.length === 0 || isInpaintingInProgressRef.current) {
       return;
     }
 
+    console.log('🎨 [INPAINT] Iniciando inpainting...');
     setIsProcessing(true);
+    isInpaintingInProgressRef.current = true;
 
     try {
       // Create a temporary mask image with original image dimensions
@@ -270,44 +261,54 @@ const InpaintingTool = ({
       const result = await window.electronAPI.processInpainting(currentImagePath, maskDataUrl);
       
       if (result.success) {
-        // Reload the updated image
-        const imageData = await window.electronAPI.loadImage(currentImagePath);
-        const img = new Image();
+        console.log('✅ [INPAINT] Inpainting completado, recargando imagen...');
         
-        img.onload = () => {
-          onImageSaved(img);
-          clearMask();
-        };
+        // CRUCIAL: Limpiar máscaras ANTES de recargar
+        setMaskPaths([]);
         
-        img.onerror = () => {
-          throw new Error('Error cargando imagen procesada');
-        };
+        // Esperar un poco más para asegurar que el archivo fue escrito
+        setTimeout(async () => {
+          try {
+            const imageData = await window.electronAPI.loadImage(currentImagePath);
+            const img = new Image();
+            
+            img.onload = () => {
+              console.log('🖼️ [INPAINT] Nueva imagen cargada exitosamente');
+              
+              // IMPORTANTE: NO llamar a onImageSaved para evitar auto-guardado
+              // Solo actualizar el canvas directamente
+              if (mainCanvasRef.current) {
+                displayImageHelper(img, mainCanvasRef.current, zoomFactor);
+              }
+              
+              // Notificar al padre SOLO para actualizar currentImage, pero SIN disparar guardado
+              // Esto es necesario para que las funciones de zoom, etc. funcionen correctamente
+              onImageSaved(img);
+            };
+            
+            img.onerror = () => {
+              console.error('❌ [INPAINT] Error cargando imagen procesada');
+              throw new Error('Error cargando imagen procesada');
+            };
+            
+            img.src = imageData;
+          } catch (reloadError) {
+            console.error('❌ [INPAINT] Error recargando imagen:', reloadError);
+            alert(`Error recargando imagen: ${reloadError.message}`);
+          }
+        }, 500); // Aumentar delay a 500ms para asegurar que el archivo fue completamente escrito
         
-        img.src = imageData;
       } else {
         throw new Error(result.error || 'Error desconocido en inpainting');
       }
 
     } catch (error) {
-      console.error('Error processing inpainting:', error);
+      console.error('❌ [INPAINT] Error processing inpainting:', error);
       alert(`Error en inpainting: ${error.message}`);
     } finally {
       setIsProcessing(false);
+      isInpaintingInProgressRef.current = false;
     }
-  };
-
-  const undoLastStroke = () => {
-    if (maskPaths.length === 0) return;
-    
-    setMaskPaths(prev => prev.slice(0, -1));
-    
-    // Clear any pending auto-apply
-    if (drawTimeoutRef.current) {
-      clearTimeout(drawTimeoutRef.current);
-    }
-    
-    // Redraw overlay without the last path
-    setTimeout(redrawOverlay, 0);
   };
 
   // Add mouse event listeners to main canvas when in inpaint mode
@@ -333,11 +334,6 @@ const InpaintingTool = ({
     };
   }, [isInpaintMode, isDrawing, brushSize, displayOffset, displaySize]);
 
-  // Redraw overlay when paths change - not needed anymore since we draw directly
-  useEffect(() => {
-    // No action needed - drawing happens in real time on main canvas
-  }, [maskPaths, brushSize]);
-
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -354,17 +350,18 @@ const InpaintingTool = ({
         <div className="flex items-center gap-2 mb-3">
           <button
             onClick={() => setIsInpaintMode(!isInpaintMode)}
+            disabled={isProcessing}
             className={`flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
               isInpaintMode 
                 ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                 : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-            }`}
+            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Brush size={14} />
             {isInpaintMode ? 'Salir Edición' : 'Editar Imagen'}
           </button>
 
-          {isInpaintMode && (
+          {isInpaintMode && !isProcessing && (
             <>
               <div className="flex items-center gap-2">
                 <label className="text-xs text-gray-400">Pincel:</label>
@@ -378,6 +375,17 @@ const InpaintingTool = ({
                 />
                 <span className="text-xs text-gray-400 w-6">{brushSize}</span>
               </div>
+
+              {maskPaths.length > 0 && (
+                <button
+                  onClick={clearMask}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm font-medium"
+                  title="Limpiar trazos actuales"
+                >
+                  <RotateCcw size={14} />
+                  Limpiar
+                </button>
+              )}
 
               {hasBackedUpOriginal && (
                 <button
@@ -397,9 +405,10 @@ const InpaintingTool = ({
           <div className="text-xs text-gray-400 space-y-1">
             <p>• Dibuja sobre las áreas que quieres eliminar/reparar</p>
             <p>• El inpainting se aplica automáticamente al soltar el mouse</p>
-            <p>• Usa trazos continuos para mejores resultados</p>
+            <p>• Usa "Limpiar" para borrar trazos sin aplicar</p>
+            <p className="text-yellow-400">• Los cambios NO se guardan hasta hacer clic en "Siguiente Producto"</p>
             {isProcessing && (
-              <p className="text-yellow-400">• Procesando inpainting...</p>
+              <p className="text-yellow-400 font-medium">• Procesando inpainting... Por favor espera.</p>
             )}
           </div>
         )}

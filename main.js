@@ -308,9 +308,11 @@ ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr
   }
 });
 
+//Image manipulation root main.js
 
-// ==== AGREGAR AL FINAL DE TU main.js EXISTENTE ====
-// Solo requiere 'sharp' que ya tienes instalado
+
+
+//Image manipulation root main.js
 
 // Handler mejorado para guardar imagen editada manteniendo dimensiones originales
 ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData) => {
@@ -365,15 +367,11 @@ ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData)
   }
 });
 
-// Add these handlers to your existing main.js file
-// Place them before the app.whenReady() line
-// Also add these imports at the top of your main.js:
-// const { spawn } = require('child_process');
-// const os = require('os');
-
-// Handler for processing inpainting with OpenCV Python script
+// Handler for processing inpainting with OpenCV Python script - MODIFIED
 ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
   try {
+    console.log('🎨 [MAIN] Iniciando proceso de inpainting para:', imagePath);
+    
     // Create temporary directory for processing
     const tempDir = path.join(os.tmpdir(), 'inpainting_temp');
     await fs.mkdir(tempDir, { recursive: true });
@@ -416,8 +414,9 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
       throw new Error('Inpainting output file was not created');
     }
     
-    // Replace original image with processed result
+    // IMPORTANTE: Solo reemplazar el archivo original, NO disparar save-edited-image
     await fs.copyFile(tempOutputPath, imagePath);
+    console.log('✅ [MAIN] Archivo de imagen reemplazado exitosamente');
     
     // Cleanup temporary files
     try {
@@ -426,16 +425,16 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
       await fs.unlink(tempOutputPath);
       await fs.rmdir(tempDir);
     } catch (cleanupError) {
-      console.warn('Warning: Could not clean up temporary files:', cleanupError.message);
+      console.warn('⚠️ [MAIN] Warning: Could not clean up temporary files:', cleanupError.message);
     }
     
     return {
       success: true,
-      message: 'Inpainting completed successfully'
+      message: 'Inpainting completed successfully - file replaced on disk'
     };
     
   } catch (error) {
-    console.error('Error processing inpainting:', error);
+    console.error('❌ [MAIN] Error processing inpainting:', error);
     return {
       success: false,
       error: error.message
@@ -462,6 +461,8 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       const pythonCmd = pythonCommands[currentCommandIndex];
       const args = [scriptPath, imagePath, maskPath, outputPath, radius.toString()];
       
+      console.log(`🐍 [MAIN] Ejecutando: ${pythonCmd} ${args.join(' ')}`);
+      
       const pythonProcess = spawn(pythonCmd, args, {
         stdio: ['ignore', 'pipe', 'pipe']
       });
@@ -479,12 +480,13 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       
       pythonProcess.on('close', (code) => {
         if (code === 0) {
+          console.log('✅ [MAIN] Python script ejecutado exitosamente');
           resolve({
             success: true,
             output: stdout
           });
         } else {
-          console.log(`Python command '${pythonCmd}' failed with code ${code}`);
+          console.log(`❌ [MAIN] Python command '${pythonCmd}' failed with code ${code}`);
           console.log('STDOUT:', stdout);
           console.log('STDERR:', stderr);
           
@@ -495,7 +497,7 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       });
       
       pythonProcess.on('error', (error) => {
-        console.log(`Error executing '${pythonCmd}':`, error.message);
+        console.log(`❌ [MAIN] Error executing '${pythonCmd}':`, error.message);
         // If this command errored, try the next one
         currentCommandIndex++;
         tryNextCommand();
@@ -627,6 +629,7 @@ if (!ipcMain.listenerCount('load-image')) {
     }
   });
 }
+
 
 
 app.whenReady().then(createWindow);
