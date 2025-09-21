@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import CombineProducts from './CombineProducts';
-import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw, Wand2, Undo2, Save, Eraser } from 'lucide-react';
+import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { generateUrlId, displayImage as displayImageHelper } from './helpers';
+import InpaintingTool from './InpaintingTool';
 
 const ProductThumbnailImage = ({ path, alt, className }) => {
   const [src, setSrc] = useState('');
@@ -64,20 +66,8 @@ const TiendaNubeProductManager = () => {
   const [activeTab, setActiveTab] = useState('general');
   const [allProductsProcessed, setAllProductsProcessed] = useState(false);
 
-  const canvasRef = useRef(null);
-  const maskCanvasRef = useRef(null);
-  const overlayCanvasRef = useRef(null);
   const imageRef = useRef(null);
-
-  // Estados mejorados para inpainting
-  const [isInpaintingMode, setIsInpaintingMode] = useState(false);
-  const [brushSize, setBrushSize] = useState(50);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [originalImageData, setOriginalImageData] = useState(null);
-  const [currentImageData, setCurrentImageData] = useState(null);
-  const [maskAccumulated, setMaskAccumulated] = useState(null);
+  const canvasRef = useRef(null);
 
   const predefinedColors = [
     "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste",
@@ -118,251 +108,6 @@ const TiendaNubeProductManager = () => {
     "Cristal",
     "Pulseras"
   ];
-
-  // Algoritmo de inpainting avanzado con múltiples técnicas
-  const performAdvancedInpainting = (imageData, maskData) => {
-    const width = imageData.width;
-    const height = imageData.height;
-    const data = new Uint8ClampedArray(imageData.data);
-
-    // Crear máscara binaria más precisa
-    const mask = new Uint8ClampedArray(width * height);
-    for (let i = 0; i < maskData.data.length; i += 4) {
-      const alpha = maskData.data[i + 3];
-      const brightness = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
-      mask[i / 4] = (alpha > 128 && brightness > 100) ? 255 : 0;
-    }
-
-    // Fase 1: Propagación inicial desde los bordes hacia adentro
-    const initialIterations = 15;
-    for (let iter = 0; iter < initialIterations; iter++) {
-      const newData = new Uint8ClampedArray(data);
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const idx = y * width + x;
-          const pixelIdx = idx * 4;
-
-          if (mask[idx] > 128) {
-            let r = 0, g = 0, b = 0, totalWeight = 0;
-            let validSamples = 0;
-
-            // Usar un kernel adaptativo más grande para mejor propagación
-            const kernelRadius = Math.min(8, Math.max(3, iter + 2));
-
-            for (let dy = -kernelRadius; dy <= kernelRadius; dy++) {
-              for (let dx = -kernelRadius; dx <= kernelRadius; dx++) {
-                if (dx === 0 && dy === 0) continue;
-
-                const nx = x + dx;
-                const ny = y + dy;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height && distance <= kernelRadius) {
-                  const neighborIdx = ny * width + nx;
-                  const neighborPixelIdx = neighborIdx * 4;
-
-                  // Solo usar píxeles válidos (no marcados para borrar) o ya procesados
-                  if (mask[neighborIdx] < 128 || (iter > 3 && data[neighborPixelIdx] !== 0)) {
-                    // Peso basado en distancia inversa con falloff gaussiano
-                    const weight = Math.exp(-(distance * distance) / (kernelRadius * kernelRadius * 0.5));
-
-                    r += data[neighborPixelIdx] * weight;
-                    g += data[neighborPixelIdx + 1] * weight;
-                    b += data[neighborPixelIdx + 2] * weight;
-                    totalWeight += weight;
-                    validSamples++;
-                  }
-                }
-              }
-            }
-
-            if (totalWeight > 0 && validSamples >= 4) {
-              newData[pixelIdx] = Math.round(r / totalWeight);
-              newData[pixelIdx + 1] = Math.round(g / totalWeight);
-              newData[pixelIdx + 2] = Math.round(b / totalWeight);
-              newData[pixelIdx + 3] = 255;
-            }
-          }
-        }
-      }
-
-      data.set(newData);
-    }
-
-    // Fase 2: Suavizado adaptativo para eliminar artefactos
-    const smoothingIterations = 8;
-    for (let iter = 0; iter < smoothingIterations; iter++) {
-      const newData = new Uint8ClampedArray(data);
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const idx = y * width + x;
-          const pixelIdx = idx * 4;
-
-          if (mask[idx] > 128) {
-            let r = 0, g = 0, b = 0;
-            let sampleCount = 0;
-
-            // Usar un kernel más pequeño para suavizado
-            const smoothRadius = 2;
-
-            for (let dy = -smoothRadius; dy <= smoothRadius; dy++) {
-              for (let dx = -smoothRadius; dx <= smoothRadius; dx++) {
-                const nx = x + dx;
-                const ny = y + dy;
-
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                  const neighborPixelIdx = (ny * width + nx) * 4;
-                  const distance = Math.sqrt(dx * dx + dy * dy);
-
-                  if (distance <= smoothRadius) {
-                    // Peso gaussiano para suavizado natural
-                    const weight = Math.exp(-(distance * distance) / (smoothRadius * smoothRadius * 0.3));
-
-                    r += data[neighborPixelIdx] * weight;
-                    g += data[neighborPixelIdx + 1] * weight;
-                    b += data[neighborPixelIdx + 2] * weight;
-                    sampleCount += weight;
-                  }
-                }
-              }
-            }
-
-            if (sampleCount > 0) {
-              // Mezclar con el resultado anterior para transición suave
-              const blendFactor = 0.7;
-              const currentR = data[pixelIdx];
-              const currentG = data[pixelIdx + 1];
-              const currentB = data[pixelIdx + 2];
-              const newR = Math.round(r / sampleCount);
-              const newG = Math.round(g / sampleCount);
-              const newB = Math.round(b / sampleCount);
-
-              newData[pixelIdx] = Math.round(currentR * (1 - blendFactor) + newR * blendFactor);
-              newData[pixelIdx + 1] = Math.round(currentG * (1 - blendFactor) + newG * blendFactor);
-              newData[pixelIdx + 2] = Math.round(currentB * (1 - blendFactor) + newB * blendFactor);
-            }
-          }
-        }
-      }
-
-      data.set(newData);
-    }
-
-    // Fase 3: Corrección de bordes para transición natural
-    const edgeIterations = 5;
-    for (let iter = 0; iter < edgeIterations; iter++) {
-      const newData = new Uint8ClampedArray(data);
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const idx = y * width + x;
-          const pixelIdx = idx * 4;
-
-          // Solo procesar píxeles en el borde de la máscara
-          if (mask[idx] > 128) {
-            let hasValidNeighbor = false;
-
-            // Verificar si está en el borde
-            for (let dy = -1; dy <= 1; dy++) {
-              for (let dx = -1; dx <= 1; dx++) {
-                const nx = x + dx;
-                const ny = y + dy;
-
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                  const neighborIdx = ny * width + nx;
-                  if (mask[neighborIdx] < 128) {
-                    hasValidNeighbor = true;
-                    break;
-                  }
-                }
-              }
-              if (hasValidNeighbor) break;
-            }
-
-            if (hasValidNeighbor) {
-              // Aplicar filtro bilateral para preservar bordes
-              let r = 0, g = 0, b = 0, totalWeight = 0;
-
-              for (let dy = -2; dy <= 2; dy++) {
-                for (let dx = -2; dx <= 2; dx++) {
-                  const nx = x + dx;
-                  const ny = y + dy;
-
-                  if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                    const neighborPixelIdx = (ny * width + nx) * 4;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    if (distance <= 2) {
-                      const spatialWeight = Math.exp(-(distance * distance) / (2 * 0.8 * 0.8));
-
-                      r += data[neighborPixelIdx] * spatialWeight;
-                      g += data[neighborPixelIdx + 1] * spatialWeight;
-                      b += data[neighborPixelIdx + 2] * spatialWeight;
-                      totalWeight += spatialWeight;
-                    }
-                  }
-                }
-              }
-
-              if (totalWeight > 0) {
-                newData[pixelIdx] = Math.round(r / totalWeight);
-                newData[pixelIdx + 1] = Math.round(g / totalWeight);
-                newData[pixelIdx + 2] = Math.round(b / totalWeight);
-              }
-            }
-          }
-        }
-      }
-
-      data.set(newData);
-    }
-
-    return new ImageData(data, width, height);
-  };
-
-  // Reemplazar con el algoritmo avanzado
-  const performInpainting = performAdvancedInpainting;
-
-  // Configurar canvas cuando entra en modo inpainting - MEJORADO
-  useEffect(() => {
-    if (isInpaintingMode && canvasRef.current && currentImage) {
-      const mainCanvas = canvasRef.current;
-      const overlay = overlayCanvasRef.current;
-      const mask = maskCanvasRef.current;
-
-      if (overlay && mask) {
-        overlay.width = mainCanvas.width;
-        overlay.height = mainCanvas.height;
-        mask.width = mainCanvas.width;
-        mask.height = mainCanvas.height;
-
-        // Limpiar canvas de máscara visual
-        const overlayCtx = overlay.getContext('2d');
-        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-
-        // Inicializar máscara acumulada si no existe
-        if (!maskAccumulated) {
-          const maskCtx = mask.getContext('2d');
-          maskCtx.clearRect(0, 0, mask.width, mask.height);
-          setMaskAccumulated(maskCtx.getImageData(0, 0, mask.width, mask.height));
-        }
-
-        // Guardar estado original si no existe
-        if (!originalImageData) {
-          const mainCtx = mainCanvas.getContext('2d');
-          const originalData = mainCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
-          setOriginalImageData(originalData);
-          setCurrentImageData(new ImageData(
-            new Uint8ClampedArray(originalData.data),
-            originalData.width,
-            originalData.height
-          ));
-        }
-      }
-    }
-  }, [isInpaintingMode, currentImage]);
 
   const updateThumbnails = (mainImageFilename) => {
     if (!mainImageFilename) return;
@@ -416,11 +161,6 @@ const TiendaNubeProductManager = () => {
         setCurrentDisplayedImage(filename);
         setCurrentImagePath(imagePath);
         setZoomFactor(1.0);
-        // Reset inpainting state for new image
-        setOriginalImageData(null);
-        setCurrentImageData(null);
-        setMaskAccumulated(null);
-        setHasUnsavedChanges(false);
         setTimeout(() => displayImage(img), 100);
       };
       img.onerror = (error) => {
@@ -888,17 +628,6 @@ const TiendaNubeProductManager = () => {
 
     if (!name) return;
 
-    const generateUrlId = (name) => {
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
-      return name.toLowerCase()
-        .replace(/[áéíóúñü]/g, match => ({
-          'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ñ': 'n', 'ü': 'u'
-        })[match])
-        .replace(/[^a-z0-9]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') + '-' + timestamp;
-    };
-
     const urlId = generateUrlId(name);
     const categoriesStr = selectedCategories.length > 0
       ? selectedCategories.join(', ')
@@ -930,61 +659,15 @@ const TiendaNubeProductManager = () => {
 
 // Fixed displayImage function - eliminates black borders and maintains proper scaling
 const displayImage = (img) => {
-  const canvas = canvasRef.current;
-  const overlay = overlayCanvasRef.current;
-  const mask = maskCanvasRef.current;
-  if (!canvas || !img) return;
+    const canvas = canvasRef.current;
+    if (!canvas || !img) return;
 
-  const ctx = canvas.getContext('2d');
-
-  // Get the container size (CSS pixels)
-  const rect = canvas.getBoundingClientRect();
-  const containerWidth = Math.max(1, Math.floor(rect.width));
-  const containerHeight = Math.max(1, Math.floor(rect.height));
-
-  // Calculate scale to fit image within container (contain mode)
-  const scaleX = containerWidth / img.width;
-  const scaleY = containerHeight / img.height;
-  const scale = Math.min(scaleX, scaleY) * zoomFactor;
-
-  // Calculate actual display dimensions
-  const displayWidth = img.width * scale;
-  const displayHeight = img.height * scale;
-
-  // Center the image
-  const offsetX = (containerWidth - displayWidth) / 2;
-  const offsetY = (containerHeight - displayHeight) / 2;
-
-  // Store display info for coordinate mapping
-  setDisplaySize({ width: displayWidth, height: displayHeight });
-  setDisplayOffset({ x: offsetX, y: offsetY });
-
-  // Set canvas dimensions to match container
-  canvas.width = containerWidth;
-  canvas.height = containerHeight;
-  canvas.style.width = `${containerWidth}px`;
-  canvas.style.height = `${containerHeight}px`;
-
-  // Sync overlay and mask canvas dimensions
-  if (overlay) {
-    overlay.width = containerWidth;
-    overlay.height = containerHeight;
-    overlay.style.width = `${containerWidth}px`;
-    overlay.style.height = `${containerHeight}px`;
-  }
-  if (mask) {
-    mask.width = containerWidth;
-    mask.height = containerHeight;
-    mask.style.width = `${containerWidth}px`;
-    mask.style.height = `${containerHeight}px`;
-  }
-
-  // Clear and fill with transparent background (no black borders)
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw image centered and scaled
-  ctx.drawImage(img, offsetX, offsetY, displayWidth, displayHeight);
+    const { width, height, x, y } = displayImageHelper(img, canvas, zoomFactor);
+    setDisplaySize({ width, height }); // Needed for coordinate mapping
+    setDisplayOffset({ x, y }); // Needed for coordinate mapping
 };
+
+
 
 // Fixed coordinate mapping function
 const getImageCoordinates = (clientX, clientY) => {
@@ -1018,279 +701,8 @@ const getImageCoordinates = (clientX, clientY) => {
     canvasX: mouseX,
     canvasY: mouseY
   };
+
 };
-
-// Fixed drawMask function with proper coordinate mapping
-const drawMask = (e) => {
-  const overlay = overlayCanvasRef.current;
-  const mask = maskCanvasRef.current;
-  const mainCanvas = canvasRef.current;
-  if (!overlay || !mask || !maskAccumulated || !mainCanvas || !currentImage) return;
-
-  // Get precise coordinates
-  const coords = getImageCoordinates(e.clientX, e.clientY);
-  if (!coords) return; // Don't draw outside image bounds
-
-  const { imageX, imageY, canvasX, canvasY } = coords;
-
-  // Draw visual feedback on overlay (in canvas coordinates)
-  const overlayCtx = overlay.getContext('2d');
-  overlayCtx.globalCompositeOperation = 'source-over';
-  overlayCtx.fillStyle = 'rgba(255, 50, 50, 0.5)';
-  overlayCtx.beginPath();
-  
-  // Scale brush size according to current zoom
-  const scale = Math.min(mainCanvas.width / currentImage.width, mainCanvas.height / currentImage.height) * zoomFactor;
-  const scaledBrushSize = brushSize * scale;
-  
-  overlayCtx.arc(canvasX, canvasY, scaledBrushSize, 0, 2 * Math.PI);
-  overlayCtx.fill();
-
-  // Update mask in image coordinates
-  const maskCtx = mask.getContext('2d');
-  
-  // Create an image-sized mask if not exists
-  if (mask.width !== currentImage.width || mask.height !== currentImage.height) {
-    mask.width = currentImage.width;
-    mask.height = currentImage.height;
-    
-    // Initialize with current accumulated mask or clear
-    if (maskAccumulated && maskAccumulated.width === currentImage.width && maskAccumulated.height === currentImage.height) {
-      maskCtx.putImageData(maskAccumulated, 0, 0);
-    } else {
-      maskCtx.clearRect(0, 0, mask.width, mask.height);
-      setMaskAccumulated(maskCtx.getImageData(0, 0, mask.width, mask.height));
-    }
-  }
-
-  // Draw on mask in image coordinates
-  maskCtx.fillStyle = 'rgba(255, 255, 255, 255)';
-  maskCtx.beginPath();
-  maskCtx.arc(imageX, imageY, brushSize / 2, 0, 2 * Math.PI);
-  maskCtx.fill();
-
-  // Update accumulated mask
-  const newMaskData = maskCtx.getImageData(0, 0, mask.width, mask.height);
-  setMaskAccumulated(newMaskData);
-};
-
-// Fixed inpainting setup
-useEffect(() => {
-  if (isInpaintingMode && canvasRef.current && currentImage) {
-    const mainCanvas = canvasRef.current;
-    const overlay = overlayCanvasRef.current;
-    const mask = maskCanvasRef.current;
-
-    if (overlay && mask) {
-      // Sync overlay with main canvas
-      overlay.width = mainCanvas.width;
-      overlay.height = mainCanvas.height;
-      overlay.style.width = mainCanvas.style.width;
-      overlay.style.height = mainCanvas.style.height;
-
-      // Set mask to image dimensions
-      mask.width = currentImage.width;
-      mask.height = currentImage.height;
-
-      // Clear overlay
-      const overlayCtx = overlay.getContext('2d');
-      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-
-      // Initialize or clear mask
-      const maskCtx = mask.getContext('2d');
-      maskCtx.clearRect(0, 0, mask.width, mask.height);
-      setMaskAccumulated(maskCtx.getImageData(0, 0, mask.width, mask.height));
-
-      // Store original image data at image resolution
-      if (!originalImageData) {
-        // Create a canvas at image resolution to store original
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = currentImage.width;
-        tempCanvas.height = currentImage.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(currentImage, 0, 0);
-        
-        const originalData = tempCtx.getImageData(0, 0, currentImage.width, currentImage.height);
-        setOriginalImageData(originalData);
-        setCurrentImageData(new ImageData(
-          new Uint8ClampedArray(originalData.data),
-          originalData.width,
-          originalData.height
-        ));
-      }
-    }
-  }
-}, [isInpaintingMode, currentImage]);
-
-// Fixed inpainting processing
-const processInpainting = async () => {
-  if (!canvasRef.current || !maskAccumulated || !currentImageData || !currentImage) return;
-
-  setIsProcessing(true);
-
-  try {
-    // Perform inpainting at image resolution
-    const result = performInpainting(currentImageData, maskAccumulated);
-
-    // Update current image data
-    setCurrentImageData(new ImageData(
-      new Uint8ClampedArray(result.data),
-      result.width,
-      result.height
-    ));
-
-    // Create temporary image from result to display
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = result.width;
-    tempCanvas.height = result.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.putImageData(result, 0, 0);
-
-    // Create new image object
-    const img = new Image();
-    img.onload = () => {
-      setCurrentImage(img);
-      setHasUnsavedChanges(true);
-      setTimeout(() => displayImage(img), 50);
-    };
-    img.src = tempCanvas.toDataURL();
-
-    // Clear visual overlay but keep mask for additional edits
-    clearVisualOverlay();
-
-  } catch (error) {
-    console.error('Error en inpainting:', error);
-    alert('Error procesando el inpainting');
-  } finally {
-    setIsProcessing(false);
-  }
-};
-
-// Fixed save function that preserves original dimensions
-const saveInpaintingChanges = async () => {
-  if (!hasUnsavedChanges || !currentImageData || !currentImagePath) return;
-
-  try {
-    // Create canvas at original image dimensions
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = currentImageData.width;
-    tempCanvas.height = currentImageData.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    
-    // Draw the edited image data
-    tempCtx.putImageData(currentImageData, 0, 0);
-
-    // Export at high quality
-    const editedImageDataUrl = tempCanvas.toDataURL('image/jpeg', 0.98);
-    const result = await window.electronAPI.saveEditedImage(currentImagePath, editedImageDataUrl);
-
-    if (result.success) {
-      setHasUnsavedChanges(false);
-
-      // Update original data
-      setOriginalImageData(new ImageData(
-        new Uint8ClampedArray(currentImageData.data),
-        currentImageData.width,
-        currentImageData.height
-      ));
-
-      clearAllMasks();
-      console.log('Imagen guardada exitosamente:', result.backupPath);
-    } else {
-      alert('Error al guardar: ' + result.error);
-    }
-  } catch (error) {
-    console.error('Error guardando:', error);
-    alert('Error al guardar la imagen');
-  }
-};
-
-// Fixed clear functions
-const clearVisualOverlay = () => {
-  if (overlayCanvasRef.current) {
-    const ctx = overlayCanvasRef.current.getContext('2d');
-    ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
-  }
-};
-
-const clearAllMasks = () => {
-  clearVisualOverlay();
-
-  if (maskCanvasRef.current && currentImage) {
-    const ctx = maskCanvasRef.current.getContext('2d');
-    ctx.canvas.width = currentImage.width;
-    ctx.canvas.height = currentImage.height;
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    setMaskAccumulated(ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height));
-  }
-};
-
-// Fixed undo function
-const undoInpainting = () => {
-  if (!originalImageData || !currentImage) return;
-
-  // Recreate image from original data
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = originalImageData.width;
-  tempCanvas.height = originalImageData.height;
-  const tempCtx = tempCanvas.getContext('2d');
-  tempCtx.putImageData(originalImageData, 0, 0);
-
-  const img = new Image();
-  img.onload = () => {
-    setCurrentImage(img);
-    setCurrentImageData(new ImageData(
-      new Uint8ClampedArray(originalImageData.data),
-      originalImageData.width,
-      originalImageData.height
-    ));
-    setHasUnsavedChanges(false);
-    clearAllMasks();
-    setTimeout(() => displayImage(img), 50);
-  };
-  img.src = tempCanvas.toDataURL();
-};
-
-// Updated mouse event handlers
-const handleMouseDown = (e) => {
-  if (!isInpaintingMode) return;
-  e.preventDefault();
-  setIsDrawing(true);
-  drawMask(e);
-};
-
-const handleMouseMove = (e) => {
-  if (!isDrawing || !isInpaintingMode) return;
-  e.preventDefault();
-  drawMask(e);
-};
-
-const handleMouseUp = async (e) => {
-  if (!isDrawing || !isInpaintingMode) return;
-  e.preventDefault();
-  setIsDrawing(false);
-  await processInpainting();
-};
-
-  // Función para salir del modo inpainting mejorada
-  const exitInpaintingMode = () => {
-    if (hasUnsavedChanges) {
-      const shouldSave = confirm('¿Guardar cambios antes de salir del modo inpainting?');
-      if (shouldSave) {
-        saveInpaintingChanges();
-      } else {
-        undoInpainting();
-      }
-    }
-
-    setIsInpaintingMode(false);
-    setOriginalImageData(null);
-    setCurrentImageData(null);
-    setMaskAccumulated(null);
-    setHasUnsavedChanges(false);
-    clearAllMasks();
-  };
-
   const restartApp = () => {
     setCsvData([]);
     setCsvPath('');
@@ -1321,12 +733,6 @@ const handleMouseUp = async (e) => {
     setCurrentProductAllImages([]);
     setCurrentDisplayedImage('');
     setCurrentImagePath('');
-    // Reset inpainting states
-    setIsInpaintingMode(false);
-    setOriginalImageData(null);
-    setCurrentImageData(null);
-    setMaskAccumulated(null);
-    setHasUnsavedChanges(false);
   };
 
   useEffect(() => {
@@ -1472,120 +878,26 @@ const handleMouseUp = async (e) => {
             <div className="flex-1 p-4 relative">
               <canvas
                 ref={canvasRef}
-                className={`w-full h-full ${isInpaintingMode ? 'cursor-crosshair' : 'cursor-default'}`}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={() => setIsDrawing(false)}
+                className="w-full h-full cursor-default"
               />
-
-              <canvas
-                ref={overlayCanvasRef}
-                className="absolute inset-0 pointer-events-none"
-              />
-
-              <canvas
-                ref={maskCanvasRef}
-                className="absolute inset-0 pointer-events-none"
-                style={{ display: 'none' }}
-              />
-
-
-              {/* Indicador de procesamiento */}
-              {isProcessing && (
-                <div className="absolute inset-4 bg-black bg-opacity-70 flex items-center justify-center rounded">
-                  <div className="bg-gray-800 rounded-lg p-3 flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm">Procesando borrado...</span>
-                  </div>
-                </div>
-              )}
             </div>
 
-            <div className="p-4 border-t border-gray-700">
-              <div className="flex items-center gap-2 mb-3">
-                <button onClick={() => handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                  <ZoomIn size={16} />
-                </button>
-                <button onClick={() => handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                  <ZoomOut size={16} />
-                </button>
-                <button onClick={() => setZoomFactor(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                  <RotateCcw size={16} />
-                </button>
-
-                {/* Separador */}
-                <div className="w-px h-6 bg-gray-600 mx-2"></div>
-
-                {/* Controles de Inpainting */}
-                <button
-                  onClick={() => setIsInpaintingMode(!isInpaintingMode)}
-                  className={`p-2 rounded flex items-center gap-1 ${isInpaintingMode
-                    ? 'bg-purple-600 hover:bg-purple-500'
-                    : 'bg-gray-700 hover:bg-gray-600'
-                    }`}
-                  title="Borrado generativo"
-                >
-                  <Wand2 size={16} />
-                </button>
-
-                {isInpaintingMode && (
-                  <>
-                    <input
-                      type="range"
-                      min="30"
-                      max="60"
-                      value={brushSize}
-                      onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                      className="w-16 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                      title={`Tamaño pincel: ${brushSize}px`}
-                    />
-
-                    <button
-                      onClick={clearAllMasks}
-                      className="p-2 bg-orange-600 hover:bg-orange-500 rounded"
-                      title="Limpiar máscara"
-                    >
-                      <Eraser size={16} />
-                    </button>
-
-                    <button
-                      onClick={undoInpainting}
-                      disabled={!hasUnsavedChanges}
-                      className="p-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded"
-                      title="Deshacer todo"
-                    >
-                      <Undo2 size={16} />
-                    </button>
-
-                    <button
-                      onClick={saveInpaintingChanges}
-                      disabled={!hasUnsavedChanges}
-                      className="p-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded"
-                      title="Guardar cambios"
-                    >
-                      <Save size={16} />
-                    </button>
-
-                    <button
-                      onClick={exitInpaintingMode}
-                      className="p-2 bg-gray-600 hover:bg-gray-500 rounded text-xs"
-                      title="Salir"
-                    >
-                      ✕
-                    </button>
-                  </>
-                )}
-              </div>
-              {isInpaintingMode && (
-                <div className="text-xs text-gray-400 text-center">
-                  {hasUnsavedChanges
-                    ? '⚠ Cambios sin guardar - Pincel: ' + brushSize + 'px'
-                    : `Pincel: ${brushSize}px - Pinta sobre áreas a eliminar`
-                  }
-                </div>
-              )}
+            <div className="p-4 border-t border-gray-700 flex items-center gap-2">
+              <button onClick={() => handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomIn size={16} /></button>
+              <button onClick={() => handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><ZoomOut size={16} /></button>
+              <button onClick={() => setZoomFactor(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded"><RotateCcw size={16} /></button>
             </div>
+
+            <InpaintingTool
+              mainCanvasRef={canvasRef}
+              currentImage={currentImage}
+              currentImagePath={currentImagePath}
+              onImageSaved={(img) => { setCurrentImage(img); setTimeout(() => displayImage(img), 50); }}
+              zoomFactor={zoomFactor}
+              displayOffset={displayOffset}
+              displaySize={displaySize}
+            />
+
             <ProductThumbnails />
           </div>
 
