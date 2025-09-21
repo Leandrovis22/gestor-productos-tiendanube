@@ -414,23 +414,6 @@ ipcMain.handle('read-csv', async (event, filePath) => {
   }
 });
 
-ipcMain.handle('load-image', async (event, imagePath) => {
-  try {
-    const exists = await fs.access(imagePath).then(() => true).catch(() => false);
-    if (!exists) {
-      throw new Error(`Image file not found: ${imagePath}`);
-    }
-
-    const imageBuffer = await fs.readFile(imagePath);
-    const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
-    
-    return base64Image;
-  } catch (error) {
-    console.error('Error loading image:', error);
-    throw error;
-  }
-});
-
 ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   try {
     const exists = await fs.access(csvPath).then(() => true).catch(() => false);

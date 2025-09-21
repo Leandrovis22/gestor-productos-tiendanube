@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import CombineProducts from './CombineProducts';
-import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw} from 'lucide-react';
+import { ChevronRight, FolderOpen, FileText, SkipForward, ZoomIn, ZoomOut, RotateCcw, Wand2, Undo2, Save, Trash2, Eraser } from 'lucide-react';
 
 const ProductThumbnailImage = ({ path, alt, className }) => {
   const [src, setSrc] = useState('');
@@ -25,6 +25,7 @@ const ProductThumbnailImage = ({ path, alt, className }) => {
 
   return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
 };
+
 const TiendaNubeProductManager = () => {
   const [csvData, setCsvData] = useState([]);
   const [csvPath, setCsvPath] = useState('');
@@ -64,7 +65,19 @@ const TiendaNubeProductManager = () => {
   const [allProductsProcessed, setAllProductsProcessed] = useState(false);
 
   const canvasRef = useRef(null);
+  const maskCanvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
   const imageRef = useRef(null);
+
+  // Estados mejorados para inpainting
+  const [isInpaintingMode, setIsInpaintingMode] = useState(false);
+  const [brushSize, setBrushSize] = useState(25);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [originalImageData, setOriginalImageData] = useState(null);
+  const [currentImageData, setCurrentImageData] = useState(null);
+  const [maskAccumulated, setMaskAccumulated] = useState(null);
 
   const predefinedColors = [
     "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste",
@@ -106,6 +119,132 @@ const TiendaNubeProductManager = () => {
     "Pulseras"
   ];
 
+  // Función mejorada para el algoritmo de inpainting con mejor propagación
+  const performInpainting = (imageData, maskData) => {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = new Uint8ClampedArray(imageData.data);
+
+    // Crear máscara binaria más precisa
+    const mask = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < maskData.data.length; i += 4) {
+      const alpha = maskData.data[i + 3];
+      const brightness = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
+      mask[i / 4] = (alpha > 128 && brightness > 100) ? 255 : 0;
+    }
+
+    // Algoritmo mejorado con mejor propagación y múltiples iteraciones
+    const iterations = 25;
+    const blendFactor = 0.8;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const newData = new Uint8ClampedArray(data);
+      let hasChanges = false;
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const idx = y * width + x;
+          const pixelIdx = idx * 4;
+
+          if (mask[idx] > 128) {
+            let r = 0, g = 0, b = 0, totalWeight = 0;
+            let validNeighbors = 0;
+
+            // Usar kernel más grande en las primeras iteraciones, más pequeño después
+            const kernelSize = iter < 10 ? 3 : 2;
+
+            for (let dy = -kernelSize; dy <= kernelSize; dy++) {
+              for (let dx = -kernelSize; dx <= kernelSize; dx++) {
+                if (dx === 0 && dy === 0) continue;
+
+                const nx = x + dx;
+                const ny = y + dy;
+
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                  const neighborIdx = ny * width + nx;
+                  const neighborPixelIdx = neighborIdx * 4;
+
+                  // Solo usar píxeles que no necesitan inpainting O que ya fueron procesados
+                  if (mask[neighborIdx] < 128 || (iter > 5 && mask[neighborIdx] > 128)) {
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const weight = 1.0 / (1.0 + distance * 0.5);
+
+                    r += data[neighborPixelIdx] * weight;
+                    g += data[neighborPixelIdx + 1] * weight;
+                    b += data[neighborPixelIdx + 2] * weight;
+                    totalWeight += weight;
+                    validNeighbors++;
+                  }
+                }
+              }
+            }
+
+            if (totalWeight > 0 && validNeighbors >= 3) {
+              const newR = Math.round(r / totalWeight);
+              const newG = Math.round(g / totalWeight);
+              const newB = Math.round(b / totalWeight);
+
+              // Mezclar progresivamente más con cada iteración
+              const currentBlend = Math.min(blendFactor + (iter * 0.01), 0.95);
+              
+              newData[pixelIdx] = Math.round(data[pixelIdx] * (1 - currentBlend) + newR * currentBlend);
+              newData[pixelIdx + 1] = Math.round(data[pixelIdx + 1] * (1 - currentBlend) + newG * currentBlend);
+              newData[pixelIdx + 2] = Math.round(data[pixelIdx + 2] * (1 - currentBlend) + newB * currentBlend);
+              
+              hasChanges = true;
+            }
+          }
+        }
+      }
+
+      data.set(newData);
+      
+      // Si no hay cambios significativos, salir temprano
+      if (!hasChanges && iter > 10) break;
+    }
+
+    return new ImageData(data, width, height);
+  };
+
+  // Configurar canvas cuando entra en modo inpainting - MEJORADO
+  useEffect(() => {
+    if (isInpaintingMode && canvasRef.current && currentImage) {
+      const mainCanvas = canvasRef.current;
+      const overlay = overlayCanvasRef.current;
+      const mask = maskCanvasRef.current;
+
+      if (overlay && mask) {
+        overlay.width = mainCanvas.width;
+        overlay.height = mainCanvas.height;
+        mask.width = mainCanvas.width;
+        mask.height = mainCanvas.height;
+
+        // Limpiar canvas de máscara visual
+        const overlayCtx = overlay.getContext('2d');
+        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+        // Inicializar máscara acumulada si no existe
+        if (!maskAccumulated) {
+          const maskCtx = mask.getContext('2d');
+          maskCtx.clearRect(0, 0, mask.width, mask.height);
+          setMaskAccumulated(maskCtx.getImageData(0, 0, mask.width, mask.height));
+        }
+
+        // Guardar estado original si no existe
+        if (!originalImageData) {
+          const mainCtx = mainCanvas.getContext('2d');
+          const originalData = mainCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+          setOriginalImageData(originalData);
+          setCurrentImageData(new ImageData(
+            new Uint8ClampedArray(originalData.data),
+            originalData.width,
+            originalData.height
+          ));
+        }
+      }
+    }
+  }, [isInpaintingMode, currentImage]);
+
   const updateThumbnails = (mainImageFilename) => {
     if (!mainImageFilename) return;
 
@@ -131,11 +270,10 @@ const TiendaNubeProductManager = () => {
 
   const switchToProductImage = async (targetImageName) => {
     if (!workingDirectory || !targetImageName) return;
-  
+
     try {
       const imagePath = `${workingDirectory}/${targetImageName}`;
       await loadImageOnly(imagePath, targetImageName);
-  
     } catch (error) {
       console.error('Error switching to product image:', error);
     }
@@ -159,6 +297,11 @@ const TiendaNubeProductManager = () => {
         setCurrentDisplayedImage(filename);
         setCurrentImagePath(imagePath);
         setZoomFactor(1.0);
+        // Reset inpainting state for new image
+        setOriginalImageData(null);
+        setCurrentImageData(null);
+        setMaskAccumulated(null);
+        setHasUnsavedChanges(false);
         setTimeout(() => displayImage(img), 100);
       };
       img.onerror = (error) => {
@@ -473,7 +616,6 @@ const TiendaNubeProductManager = () => {
 
     await saveCurrentProduct();
 
-
     if (window.electronAPI && workingDirectory) {
       for (const filename of currentProductAllImages) {
         const sourcePath = `${workingDirectory}/${filename}`;
@@ -500,11 +642,11 @@ const TiendaNubeProductManager = () => {
 
     if (newQueue.length === 0) {
       setAllProductsProcessed(true);
-      return
+      return;
     }
 
     const nextIndex = Math.min(currentImageIndex, newQueue.length - 1);
-    setCurrentImageIndex(nextIndex)
+    setCurrentImageIndex(nextIndex);
     await loadCurrentProduct(newQueue[nextIndex], csvData, true);
   };
 
@@ -682,15 +824,15 @@ const TiendaNubeProductManager = () => {
       name,
       categories: categoriesStr,
       price: price,
-      stock: stock, // Pasar todas las imágenes del producto
+      stock: stock,
       images: currentProductAllImages
     };
 
     if (window.electronAPI) {
       await window.electronAPI.saveProduct(outputCsvPath, baseData, variantCombinations);
 
-const imagesStr = currentProductAllImages.join(',');
-await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
+      const imagesStr = currentProductAllImages.join(',');
+      await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     }
 
     setSavedImages(prev => {
@@ -700,57 +842,190 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     });
   };
 
-  useEffect(() => {
-    if (currentImage) {
-      displayImage(currentImage);
+  // Dibujo mejorado que acumula la máscara
+  const drawMask = (e) => {
+    const overlay = overlayCanvasRef.current;
+    const mask = maskCanvasRef.current;
+    if (!overlay || !mask || !maskAccumulated) return;
+
+    const rect = overlay.getBoundingClientRect();
+    const scaleX = overlay.width / rect.width;
+    const scaleY = overlay.height / rect.height;
+
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    // Dibujar en overlay (feedback visual)
+    const overlayCtx = overlay.getContext('2d');
+    overlayCtx.globalCompositeOperation = 'source-over';
+    overlayCtx.fillStyle = 'rgba(255, 50, 50, 0.6)';
+    overlayCtx.beginPath();
+    overlayCtx.arc(x, y, brushSize, 0, 2 * Math.PI);
+    overlayCtx.fill();
+
+    // Actualizar máscara acumulada
+    const maskCtx = mask.getContext('2d');
+    maskCtx.fillStyle = 'rgba(255, 255, 255, 255)';
+    maskCtx.beginPath();
+    maskCtx.arc(x, y, brushSize, 0, 2 * Math.PI);
+    maskCtx.fill();
+
+    // Actualizar el estado de máscara acumulada
+    const newMaskData = maskCtx.getImageData(0, 0, mask.width, mask.height);
+    setMaskAccumulated(newMaskData);
+  };
+
+  // Procesamiento mejorado que conserva cambios anteriores
+  const processInpainting = async () => {
+    if (!canvasRef.current || !maskAccumulated || !currentImageData) return;
+
+    setIsProcessing(true);
+
+    try {
+      // Usar la imagen actual (con cambios previos) en lugar de la original
+      const result = performInpainting(currentImageData, maskAccumulated);
+
+      // Aplicar resultado al canvas
+      const mainCanvas = canvasRef.current;
+      const mainCtx = mainCanvas.getContext('2d');
+      mainCtx.putImageData(result, 0, 0);
+
+      // Actualizar la imagen actual con los nuevos cambios
+      setCurrentImageData(new ImageData(
+        new Uint8ClampedArray(result.data),
+        result.width,
+        result.height
+      ));
+
+      setHasUnsavedChanges(true);
+      
+      // Limpiar solo la visualización, mantener la máscara para futuras ediciones
+      clearVisualOverlay();
+
+    } catch (error) {
+      console.error('Error en inpainting:', error);
+      alert('Error procesando el inpainting');
+    } finally {
+      setIsProcessing(false);
     }
-  }, [zoomFactor, currentImage]);
+  };
 
-  useEffect(() => {
-    const handleCombinationSave = async () => {
-      await loadProductImagesMap();
-      // Recargar la cola de imágenes
-      if (csvData.length > 0) {
-        await loadImagesFromData(csvData);
+  // Nueva función para limpiar solo la visualización
+  const clearVisualOverlay = () => {
+    if (overlayCanvasRef.current) {
+      const ctx = overlayCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+    }
+  };
+
+  // Función mejorada para limpiar todo
+  const clearAllMasks = () => {
+    clearVisualOverlay();
+    
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+      setMaskAccumulated(ctx.getImageData(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height));
+    }
+  };
+
+  // Nueva función para limpiar la máscara actual (sin afectar cambios previos)
+  const clearCurrentMask = () => {
+    clearVisualOverlay();
+    
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+      setMaskAccumulated(ctx.getImageData(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height));
+    }
+  };
+
+  // Función de deshacer mejorada
+  const undoInpainting = () => {
+    if (!originalImageData || !canvasRef.current) return;
+
+    const mainCanvas = canvasRef.current;
+    const ctx = mainCanvas.getContext('2d');
+    ctx.putImageData(originalImageData, 0, 0);
+    
+    // Resetear al estado original
+    setCurrentImageData(new ImageData(
+      new Uint8ClampedArray(originalImageData.data),
+      originalImageData.width,
+      originalImageData.height
+    ));
+    
+    setHasUnsavedChanges(false);
+    clearAllMasks();
+  };
+
+  // Función para guardar cambios mejorada
+  const saveInpaintingChanges = async () => {
+    if (!hasUnsavedChanges || !canvasRef.current || !currentImagePath) return;
+
+    try {
+      const editedImageDataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
+      const result = await window.electronAPI.saveEditedImage(currentImagePath, editedImageDataUrl);
+
+      if (result.success) {
+        setHasUnsavedChanges(false);
+        
+        // Actualizar la imagen original con los cambios guardados
+        const mainCtx = canvasRef.current.getContext('2d');
+        const newOriginal = mainCtx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
+        setOriginalImageData(new ImageData(
+          new Uint8ClampedArray(newOriginal.data),
+          newOriginal.width,
+          newOriginal.height
+        ));
+        
+        clearAllMasks();
+        console.log('Imagen guardada exitosamente con backup:', result.backupPath);
+      } else {
+        alert('Error al guardar: ' + result.error);
       }
-    };
-    handleCombinationSave();
-  }, [workingDirectory]);
+    } catch (error) {
+      console.error('Error guardando:', error);
+      alert('Error al guardar la imagen');
+    }
+  };
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (currentImage) {
-        setTimeout(() => displayImage(currentImage), 100);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [currentImage]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const handleWheel = (e) => {
-      e.preventDefault();
-      handleZoom(e.deltaY > 0 ? -1 : 1);
-    };
-
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      canvas.removeEventListener('wheel', handleWheel);
-    }; // Depender de handleZoom (o sus dependencias si se usa useCallback)
-  }, [handleZoom]); // Depender de handleZoom (o sus dependencias si se usa useCallback)
-
-  useEffect(() => {
-    if (csvData.length > 0 && workingDirectory && imageQueue.length > 0) {
-      if (!currentImage || currentImageIndex === 0) {
-        loadCurrentProduct(imageQueue[0], csvData, true);
+  // Función para salir del modo inpainting mejorada
+  const exitInpaintingMode = () => {
+    if (hasUnsavedChanges) {
+      const shouldSave = confirm('¿Guardar cambios antes de salir del modo inpainting?');
+      if (shouldSave) {
+        saveInpaintingChanges();
+      } else {
+        undoInpainting();
       }
     }
-  }, [csvData, workingDirectory, imageQueue]);
+    
+    setIsInpaintingMode(false);
+    setOriginalImageData(null);
+    setCurrentImageData(null);
+    setMaskAccumulated(null);
+    setHasUnsavedChanges(false);
+    clearAllMasks();
+  };
+
+  // Eventos de dibujo
+  const handleMouseDown = (e) => {
+    if (!isInpaintingMode) return;
+    setIsDrawing(true);
+    drawMask(e);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDrawing || !isInpaintingMode) return;
+    drawMask(e);
+  };
+
+  const handleMouseUp = async () => {
+    if (!isDrawing || !isInpaintingMode) return;
+    setIsDrawing(false);
+    await processInpainting();
+  };
 
   const restartApp = () => {
     setCsvData([]);
@@ -782,21 +1057,81 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
     setCurrentProductAllImages([]);
     setCurrentDisplayedImage('');
     setCurrentImagePath('');
+    // Reset inpainting states
+    setIsInpaintingMode(false);
+    setOriginalImageData(null);
+    setCurrentImageData(null);
+    setMaskAccumulated(null);
+    setHasUnsavedChanges(false);
   };
 
+  useEffect(() => {
+    if (currentImage) {
+      displayImage(currentImage);
+    }
+  }, [zoomFactor, currentImage]);
+
+  useEffect(() => {
+    const handleCombinationSave = async () => {
+      await loadProductImagesMap();
+      if (csvData.length > 0) {
+        await loadImagesFromData(csvData);
+      }
+    };
+    handleCombinationSave();
+  }, [workingDirectory]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (currentImage) {
+        setTimeout(() => displayImage(currentImage), 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [currentImage]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      handleZoom(e.deltaY > 0 ? -1 : 1);
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleZoom]);
+
+  useEffect(() => {
+    if (csvData.length > 0 && workingDirectory && imageQueue.length > 0) {
+      if (!currentImage || currentImageIndex === 0) {
+        loadCurrentProduct(imageQueue[0], csvData, true);
+      }
+    }
+  }, [csvData, workingDirectory, imageQueue]);
 
   const handleCombinationSaved = () => {
     loadProductImagesMap().then(() => {
       loadImagesFromData(csvData);
     });
-  }
+  };
 
   if (activeTab === 'combinar') {
-    return <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-      <button onClick={() => setActiveTab('general')} className="absolute top-4 right-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded z-10">Volver al Editor</button>
-      <CombineProducts workingDirectory={workingDirectory} onCombinationSaved={handleCombinationSaved} />
-    </div>
-  };
+    return (
+      <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
+        <button onClick={() => setActiveTab('general')} className="absolute top-4 right-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded z-10">
+          Volver al Editor
+        </button>
+        <CombineProducts workingDirectory={workingDirectory} onCombinationSaved={handleCombinationSaved} />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
@@ -870,36 +1205,156 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
       ) : (
         <div className="flex flex-1 overflow-hidden">
           <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col" ref={imageRef}>
-            <div className="flex-1 p-4">
+            <div className="flex-1 p-4 relative">
               <canvas
                 ref={canvasRef}
-                className={`w-full h-full bg-gray-900 cursor-crosshair`}
+                className={`w-full h-full bg-gray-900 ${isInpaintingMode ? 'cursor-crosshair' : 'cursor-default'}`}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={() => setIsDrawing(false)}
               />
+
+              {/* Canvas overlay para mostrar trazos */}
+              <canvas
+                ref={overlayCanvasRef}
+                className="absolute inset-4 pointer-events-none"
+                style={{ opacity: isInpaintingMode ? 1 : 0 }}
+              />
+
+              {/* Canvas de máscara (invisible) */}
+              <canvas
+                ref={maskCanvasRef}
+                className="absolute inset-0 pointer-events-none"
+                style={{ display: 'none' }}
+              />
+
+              {/* Indicador de procesamiento */}
+              {isProcessing && (
+                <div className="absolute inset-4 bg-black bg-opacity-70 flex items-center justify-center rounded">
+                  <div className="bg-gray-800 rounded-lg p-3 flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm">Procesando borrado...</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-          <div className="p-4 border-t border-gray-700">
-            <div className="flex items-center gap-2">
-              <button onClick={() => handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                <ZoomIn size={16} />
-              </button>
-              <button onClick={() => handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                <ZoomOut size={16} />
-              </button>
-              <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
-                <RotateCcw size={16} />
-              </button>
-              <div className="flex items-center gap-2 ml-4">
+            <div className="p-4 border-t border-gray-700">
+              <div className="flex items-center gap-2 mb-3">
+                <button onClick={() => handleZoom(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
+                  <ZoomIn size={16} />
+                </button>
+                <button onClick={() => handleZoom(-1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
+                  <ZoomOut size={16} />
+                </button>
+                <button onClick={() => setZoomFactor(1)} className="p-2 bg-gray-700 hover:bg-gray-600 rounded">
+                  <RotateCcw size={16} />
+                </button>
+
+                {/* Separador */}
+                <div className="w-px h-6 bg-gray-600 mx-2"></div>
+
+                {/* Controles de Inpainting */}
+                <button
+                  onClick={() => setIsInpaintingMode(!isInpaintingMode)}
+                  className={`p-2 rounded flex items-center gap-1 ${isInpaintingMode
+                      ? 'bg-purple-600 hover:bg-purple-500'
+                      : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                  title="Borrado generativo"
+                >
+                  <Wand2 size={16} />
+                </button>
+
+                {isInpaintingMode && (
+                  <>
+                    <input
+                      type="range"
+                      min="5"
+                      max="50"
+                      value={brushSize}
+                      onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                      className="w-16 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                      title={`Tamaño pincel: ${brushSize}px`}
+                    />
+
+                    <button 
+                      onClick={clearCurrentMask} 
+                      className="p-2 bg-yellow-600 hover:bg-yellow-500 rounded" 
+                      title="Limpiar trazo actual"
+                    >
+                      <Eraser size={16} />
+                    </button>
+
+                    <button 
+                      onClick={clearAllMasks} 
+                      className="p-2 bg-orange-600 hover:bg-orange-500 rounded" 
+                      title="Limpiar todo"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+
+                    <button 
+                      onClick={undoInpainting} 
+                      disabled={!hasUnsavedChanges} 
+                      className="p-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded" 
+                      title="Deshacer todo"
+                    >
+                      <Undo2 size={16} />
+                    </button>
+
+                    <button 
+                      onClick={saveInpaintingChanges} 
+                      disabled={!hasUnsavedChanges} 
+                      className="p-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded" 
+                      title="Guardar cambios"
+                    >
+                      <Save size={16} />
+                    </button>
+
+                    <button 
+                      onClick={exitInpaintingMode} 
+                      className="p-2 bg-gray-600 hover:bg-gray-500 rounded text-xs" 
+                      title="Salir"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </div>
+              {isInpaintingMode && (
+                <div className="text-xs text-gray-400 text-center">
+                  {hasUnsavedChanges
+                    ? '⚠ Cambios sin guardar - Pincel: ' + brushSize + 'px'
+                    : `Pincel: ${brushSize}px - Pinta sobre áreas a eliminar`
+                  }
+                </div>
+              )}
             </div>
-          </div>
             <ProductThumbnails />
           </div>
 
           <div className="flex-1 flex flex-col overflow-y-auto bg-gray-900">
             <div className="flex border-b border-gray-700">
-              <button onClick={() => setActiveTab('general')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>General</button>
-              <button onClick={() => setActiveTab('variantes')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'variantes' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>Variantes</button>
-              <button onClick={() => setActiveTab('combinar')} className={`px-4 py-2 text-sm font-medium ${activeTab === 'combinar' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}>Combinar</button>
+              <button 
+                onClick={() => setActiveTab('general')} 
+                className={`px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}
+              >
+                General
+              </button>
+              <button 
+                onClick={() => setActiveTab('variantes')} 
+                className={`px-4 py-2 text-sm font-medium ${activeTab === 'variantes' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}
+              >
+                Variantes
+              </button>
+              <button 
+                onClick={() => setActiveTab('combinar')} 
+                className={`px-4 py-2 text-sm font-medium ${activeTab === 'combinar' ? 'bg-gray-800 border-b-2 border-blue-500' : 'text-gray-400 hover:bg-gray-800'}`}
+              >
+                Combinar
+              </button>
             </div>
 
             <div className="p-6 overflow-y-auto">
@@ -961,8 +1416,8 @@ await window.electronAPI.saveImageUrlMapping(outputCsvPath, urlId, imagesStr);
                             key={category}
                             onClick={() => toggleCategory(category)}
                             className={`w-full text-left text-sm px-3 py-2 rounded ${selectedCategories.includes(category)
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-700 hover:bg-gray-600'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-700 hover:bg-gray-600'
                               }`}
                           >
                             {category}
