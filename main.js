@@ -52,11 +52,15 @@ ipcMain.handle('save-edited-image', async (event, originalPath, editedImageData)
     const buffer = Buffer.from(base64Data, 'base64');
     
     // Crear backup de la imagen original con timestamp
+    const backupDir = path.join(path.dirname(originalPath), 'backup_editadas');
+    await fs.mkdir(backupDir, { recursive: true });
+
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-    const pathParts = originalPath.split('.');
-    const extension = pathParts.pop();
-    const basePath = pathParts.join('.');
-    const backupPath = `${basePath}_backup_${timestamp}.${extension}`;
+    const filename = path.basename(originalPath);
+    const filenameParts = filename.split('.');
+    const extension = filenameParts.pop();
+    const baseFilename = filenameParts.join('.');
+    const backupPath = path.join(backupDir, `${baseFilename}_backup_${timestamp}.${extension}`);
     
     // Hacer backup de la imagen original
     await fs.copyFile(originalPath, backupPath);
@@ -214,132 +218,6 @@ ipcMain.handle('get-image-info', async (event, imagePath) => {
   }
 });
 
-// Handler para optimizar imágenes (reduce tamaño de archivo)
-ipcMain.handle('optimize-image', async (event, imagePath, options = {}) => {
-  try {
-    const {
-      quality = 85,
-      maxWidth = 1920,
-      maxHeight = 1080,
-      format = 'jpeg'
-    } = options;
-    
-    const originalStats = await fs.stat(imagePath);
-    let pipeline = sharp(imagePath);
-    
-    // Redimensionar si es necesario
-    if (maxWidth || maxHeight) {
-      pipeline = pipeline.resize(maxWidth, maxHeight, {
-        fit: 'inside',
-        withoutEnlargement: true
-      });
-    }
-    
-    // Aplicar compresión según formato
-    if (format === 'jpeg') {
-      pipeline = pipeline.jpeg({ quality, progressive: true });
-    } else if (format === 'png') {
-      pipeline = pipeline.png({ compressionLevel: 8 });
-    } else if (format === 'webp') {
-      pipeline = pipeline.webp({ quality });
-    }
-    
-    const optimizedBuffer = await pipeline.toBuffer();
-    const outputPath = imagePath.replace(/\.(jpg|jpeg|png|webp)$/i, `_optimized.${format}`);
-    
-    await fs.writeFile(outputPath, optimizedBuffer);
-    
-    return {
-      success: true,
-      outputPath: outputPath,
-      originalSize: originalStats.size,
-      newSize: optimizedBuffer.length,
-      compression: Math.round((1 - optimizedBuffer.length / originalStats.size) * 100)
-    };
-    
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-});
-
-// Handler para limpiar archivos de backup antiguos
-ipcMain.handle('cleanup-backups', async (event, directory, olderThanDays = 7) => {
-  try {
-    const files = await fs.readdir(directory);
-    const backupFiles = files.filter(file => file.includes('_backup_'));
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
-    
-    let deletedCount = 0;
-    
-    for (const file of backupFiles) {
-      const filePath = path.join(directory, file);
-      const stats = await fs.stat(filePath);
-      
-      if (stats.mtime < cutoffDate) {
-        await fs.unlink(filePath);
-        deletedCount++;
-      }
-    }
-    
-    return {
-      success: true,
-      deletedCount: deletedCount,
-      message: `Se eliminaron ${deletedCount} archivos de backup antiguos`
-    };
-    
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-});
-
-// Handler para crear una copia de seguridad completa del directorio
-ipcMain.handle('backup-directory', async (event, sourceDir, backupDir) => {
-  try {
-    // Crear directorio de backup si no existe
-    await fs.mkdir(backupDir, { recursive: true });
-    
-    const files = await fs.readdir(sourceDir);
-    const imageFiles = files.filter(file => 
-      /\.(jpg|jpeg|png|webp|gif)$/i.test(file) && !file.includes('_backup_')
-    );
-    
-    let copiedCount = 0;
-    
-    for (const file of imageFiles) {
-      const sourcePath = path.join(sourceDir, file);
-      const destPath = path.join(backupDir, file);
-      
-      // Solo copiar si no existe en el destino
-      try {
-        await fs.access(destPath);
-      } catch {
-        await fs.copyFile(sourcePath, destPath);
-        copiedCount++;
-      }
-    }
-    
-    return {
-      success: true,
-      copiedCount: copiedCount,
-      message: `Backup completado: ${copiedCount} archivos copiados`
-    };
-    
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-});
-
-// ==== TAMBIÉN AGREGAR ESTE HANDLER SI NO LO TIENES ====
 // Handler para cargar imagen (si no existe ya en tu código)
 if (!ipcMain.listenerCount('load-image')) {
   ipcMain.handle('load-image', async (event, imagePath) => {

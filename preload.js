@@ -21,5 +21,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   saveEditedImage: (originalPath, editedImageData) => ipcRenderer.invoke('save-edited-image', originalPath, editedImageData),
   processInpaintingBackend: (imagePath, maskData) => ipcRenderer.invoke('process-inpainting-backend', imagePath, maskData),
-  optimizeImage: (imagePath, options) => ipcRenderer.invoke('optimize-image', imagePath, options)
 });
