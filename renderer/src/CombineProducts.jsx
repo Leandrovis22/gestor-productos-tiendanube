@@ -59,10 +59,20 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
           });
         }
 
-        // Filtrar imágenes para no mostrar las ya procesadas, saltadas o combinadas como secundarias
-        const availableImages = allImages.filter(img =>
+        // Filtrar solo imágenes que realmente existen en el disco
+        const existingImages = [];
+        for (const img of allImages) {
+          const fullPath = `${workingDirectory}/${img}`;
+          const exists = await window.electronAPI.fileExists(fullPath);
+          if (exists) {
+            existingImages.push(img);
+          }
+        }
+
+        const availableImages = existingImages.filter(img =>
           !processedImages.has(img) && !saltadasImages.has(img) && !secondaryImages.has(img)
         );
+
         setImagesInDirectory(availableImages);
       }
     };
@@ -286,8 +296,8 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                       key={group.key}
                       onClick={() => setSelectedPropertyGroup(group)}
                       className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedPropertyGroup?.key === group.key
-                          ? 'border-blue-500 bg-blue-900/20'
-                          : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                        ? 'border-blue-500 bg-blue-900/20'
+                        : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
                         } w-[30rem]`}
                     >
                       <div className="flex-shrink-0">
