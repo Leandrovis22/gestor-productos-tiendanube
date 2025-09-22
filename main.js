@@ -141,12 +141,12 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
           "Acero > Acero Blanco > Esclavas", "Acero > Acero Quirúrgico > Conjuntos",
           "Acero > Acero Quirúrgico > Cadenas", "Acero > Acero Quirúrgico > Dijes",
           "Acero > Acero Quirúrgico > Aros > Argollas", "Acero > Acero Quirúrgico > Aros > Aros Pasantes",
-          "Acero > Acero Quirúrgico > Aros > Abridores", "Acero > Acero Quirúrgico > Anillos",
+          "Acero > Acero Quirúrgico > Aros > Abridores", "Acero > Acero Quirúrgico > Aros > Cuff", "Acero > Acero Quirúrgico > Anillos",
           "Acero > Acero Quirúrgico > Anillos > Alianzas", "Acero > Acero Quirúrgico > Pulseras",
           "Acero > Acero Quirúrgico > Esclavas", "Acero > Acero Dorado > Conjuntos",
           "Acero > Acero Dorado > Cadenas", "Acero > Acero Dorado > Dijes",
           "Acero > Acero Dorado > Aros > Argollas", "Acero > Acero Dorado > Aros > Aros Pasantes",
-          "Acero > Acero Dorado > Aros > Abridores", "Acero > Acero Dorado > Anillos",
+          "Acero > Acero Dorado > Aros > Abridores", "Acero > Acero Dorado > Aros > Cuff", "Acero > Acero Dorado > Anillos",
           "Acero > Acero Dorado > Anillos > Alianzas", "Acero > Acero Dorado > Pulseras",
           "Acero > Acero Dorado > Esclavas", "Alhajero", "Cristal", "Pulseras"
         ],
@@ -212,8 +212,8 @@ ipcMain.handle('savePredefinedType', async (event, directoryPath, newType) => {
     if (!config.variants) config.variants = {};
     if (!config.variants.predefinedTypes) config.variants.predefinedTypes = [];
 
-    // Evitar duplicados
-    if (!config.variants.predefinedTypes.some(pt => pt.name.toLowerCase() === newType.name.toLowerCase())) {
+    // Evitar duplicados y manejar casos donde pt.name es undefined
+    if (!config.variants.predefinedTypes.some(pt => (pt && typeof pt.name === 'string' && typeof newType.name === 'string') ? pt.name.toLowerCase() === newType.name.toLowerCase() : false)) {
       config.variants.predefinedTypes.push(newType);
       await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
     }
