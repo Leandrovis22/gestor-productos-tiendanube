@@ -206,6 +206,13 @@ const TiendaNubeProductManager = () => {
     }
   }, [productManager.csvData, productManager.workingDirectory, productManager.imageQueue]);
 
+  // Efecto para cargar la configuración en el formulario cuando cambia
+  useEffect(() => {
+    if (productManager.config) {
+      productForm.loadConfig(productManager.config);
+    }
+  }, [productManager.config]);
+
   // Header con controles principales
   const Header = () => (
     <div className="bg-gray-800 p-4 border-b border-gray-700">

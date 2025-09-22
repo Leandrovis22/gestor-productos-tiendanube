@@ -120,6 +120,21 @@ ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   }
 });
 
+ipcMain.handle('read-config', async (event, directoryPath) => {
+  const configPath = path.join(directoryPath, 'config.json');
+  try {
+    const configContent = await fs.readFile(configPath, 'utf-8');
+    return JSON.parse(configContent);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.warn(`Config file not found at ${configPath}. Using default values.`);
+      return null; // El frontend usará valores por defecto
+    }
+    console.error('Error reading config file:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle('save-product', async (event, csvPath, productData, variants) => {
   try {
     // Función para generar un identificador de URL único y limpio.

@@ -1,5 +1,5 @@
 // hooks/useProductFormManager.js
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export const useProductFormManager = () => {
   // Estados del formulario básico
@@ -7,7 +7,7 @@ export const useProductFormManager = () => {
   const [productPrice, setProductPrice] = useState('');
   const [productStock, setProductStock] = useState('10');
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [originalCategories, setOriginalCategories] = useState('');
+  const [originalCategories, setOriginalCategories] = useState(''); // Categorías originales del CSV
 
   // Estados de variantes
   const [useColor, setUseColor] = useState(false);
@@ -15,51 +15,42 @@ export const useProductFormManager = () => {
   const [useType, setUseType] = useState(false);
   const [selectedColors, setSelectedColors] = useState([]);
   const [selectedSizes, setSelectedSizes] = useState([]);
-  const [typeName, setTypeName] = useState('Tipo');
-  const [typeValues, setTypeValues] = useState('Modelo A\nModelo B\nModelo C');
+  const [typeName, setTypeName] = useState('');
+  const [typeValues, setTypeValues] = useState('');
   const [variantCombinations, setVariantCombinations] = useState([]);
 
-  // Categorías predefinidas
-  const categories = [
-    "Plata > Conjuntos",
-    "Plata > Cadenas",
-    "Plata > Dijes",
-    "Plata > Aros > Argollas",
-    "Plata > Aros > Aros pasantes",
-    "Plata > Aros > Abridores",
-    "Acero > Acero Blanco > Aros > Cuff",
-    "Acero > Acero Blanco > Aros > Aros Pasantes",
-    "Acero > Acero Blanco > Aros > Abridores",
-    "Acero > Acero Blanco > Aros > Argollas",
-    "Acero > Acero Blanco > Anillos",
-    "Acero > Acero Blanco > Anillos > Alianzas",
-    "Acero > Acero Blanco > Cadena",
-    "Acero > Acero Blanco > Dijes",
-    "Acero > Acero Blanco > Pulseras",
-    "Acero > Acero Blanco > Esclavas",
-    "Acero > Acero Quirúrgico > Aros",
-    "Acero > Acero Quirúrgico > Anillos",
-    "Acero > Acero Dorado > Aros > Aros Pasantes",
-    "Acero > Acero Dorado > Aros > Abridores",
-    "Acero > Acero Dorado > Aros > Argollas",
-    "Acero > Acero Dorado > Cadena",
-    "Acero > Acero Dorado > Dijes",
-    "Acero > Acero Dorado > Pulseras",
-    "Acero > Acero Dorado > Esclavas",
-    "Acero > Acero Dorado > Anillos",
-    "Alhajero",
-    "Cristal",
-    "Pulseras"
-  ];
+  // Estados para la configuración externa
+  const [categories, setCategories] = useState([]);
+  const [predefinedColors, setPredefinedColors] = useState([]);
+  const [predefinedSizes, setPredefinedSizes] = useState([]);
+  const [defaultTypeName, setDefaultTypeName] = useState('Tipo');
+  const [defaultTypeValues, setDefaultTypeValues] = useState('Modelo A\nModelo B\nModelo C');
 
-  // Colores y talles predefinidos
-  const predefinedColors = [
-    "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste",
-    "Fucsia", "Gris", "Marrón", "Naranja", "Negro", "Plata",
-    "Rojo", "Rosa", "Verde", "Violeta", "Transparente", "Multicolor"
-  ];
+  // Cargar configuración desde el hook principal
+  const loadConfig = (config) => {
+    if (config) {
+      setCategories(config.categories || []);
+      if (config.variants) {
+        setPredefinedColors(config.variants.colors || []);
+        setPredefinedSizes(config.variants.sizes || []);
+        if (config.variants.defaultType) {
+          const { name, values } = config.variants.defaultType;
+          setDefaultTypeName(name || 'Tipo');
+          setDefaultTypeValues(values || 'Modelo A\nModelo B\nModelo C');
+          // Inicializar los estados de tipo con los valores por defecto
+          setTypeName(name || 'Tipo');
+          setTypeValues(values || 'Modelo A\nModelo B\nModelo C');
+        }
+      }
+    }
+  };
 
-  const predefinedSizes = ["XS", "S", "M", "L", "XL", "XXL"];
+  // Resetear los valores de tipo a los por defecto de la configuración
+  const resetTypeToDefaults = () => {
+    setTypeName(defaultTypeName);
+    setTypeValues(defaultTypeValues);
+  };
+
 
   // Cargar datos del producto desde CSV
   const loadProductData = (filename, data) => {
@@ -221,8 +212,7 @@ export const useProductFormManager = () => {
     setUseType(false);
     setSelectedColors([]);
     setSelectedSizes([]);
-    setTypeName('Tipo');
-    setTypeValues('Modelo A\nModelo B\nModelo C');
+    resetTypeToDefaults(); // Usar los valores por defecto cargados
     setVariantCombinations([]);
   };
 
@@ -276,6 +266,7 @@ export const useProductFormManager = () => {
     predefinedSizes,
 
     // Funciones del formulario básico
+    loadConfig,
     loadProductData,
     toggleCategory,
     getProductData,

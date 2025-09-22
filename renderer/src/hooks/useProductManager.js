@@ -16,6 +16,7 @@ export const useProductManager = () => {
   const [currentProductAllImages, setCurrentProductAllImages] = useState([]);
   const [savedImages, setSavedImages] = useState(new Set());
   const [allProductsProcessed, setAllProductsProcessed] = useState(false);
+  const [config, setConfig] = useState(null);
 
   // Selección de archivo CSV
   const selectCsvFile = async () => {
@@ -30,6 +31,9 @@ export const useProductManager = () => {
           // Automatically set working directory to the same folder as the CSV
           const csvDirectory = await window.electronAPI.getDirectoryFromPath(result.filePath);
           setWorkingDirectory(csvDirectory);
+          // Load config from the new directory
+          loadConfig(csvDirectory);
+
           setAllProductsProcessed(false);
 
           // Create output CSV in the same directory
@@ -62,6 +66,8 @@ export const useProductManager = () => {
         const result = await window.electronAPI.selectDirectory();
         if (result.directoryPath && !result.canceled) {
           setWorkingDirectory(result.directoryPath);
+          // Load config from the new directory
+          loadConfig(result.directoryPath);
           setAllProductsProcessed(false);
           await createOutputCsv(result.directoryPath);
         }
@@ -86,6 +92,18 @@ export const useProductManager = () => {
       } catch (error) {
         console.error('Error loading CSV:', error);
         alert(`Error al cargar el archivo CSV: ${error.message}`);
+      }
+    }
+  };
+
+  // Carga de configuración desde config.json
+  const loadConfig = async (directory) => {
+    if (window.electronAPI && directory) {
+      try {
+        const configData = await window.electronAPI.readConfig(directory);
+        setConfig(configData);
+      } catch (error) {
+        console.error('Error loading config.json:', error);
       }
     }
   };
@@ -378,6 +396,7 @@ export const useProductManager = () => {
     currentProductAllImages,
     savedImages,
     allProductsProcessed,
+    config,
 
     // Funciones
     selectCsvFile,
