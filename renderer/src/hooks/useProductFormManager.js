@@ -23,6 +23,7 @@ export const useProductFormManager = () => {
   const [categories, setCategories] = useState([]);
   const [predefinedColors, setPredefinedColors] = useState([]);
   const [predefinedSizes, setPredefinedSizes] = useState([]);
+  const [predefinedTypes, setPredefinedTypes] = useState([]);
   const [defaultTypeName, setDefaultTypeName] = useState('Tipo');
   const [defaultTypeValues, setDefaultTypeValues] = useState('Modelo A\nModelo B\nModelo C');
 
@@ -33,6 +34,7 @@ export const useProductFormManager = () => {
       if (config.variants) {
         setPredefinedColors(config.variants.colors || []);
         setPredefinedSizes(config.variants.sizes || []);
+        setPredefinedTypes(config.variants.predefinedTypes || []);
         if (config.variants.defaultType) {
           const { name, values } = config.variants.defaultType;
           setDefaultTypeName(name || 'Tipo');
@@ -181,6 +183,12 @@ export const useProductFormManager = () => {
     setVariantCombinations(variantData);
   };
 
+  // Seleccionar un tipo predefinido de la lista de sugerencias
+  const onSelectPredefinedType = (predefinedType) => {
+    setTypeName(predefinedType.name);
+    setTypeValues(predefinedType.values.join('\n'));
+  };
+
   // Actualizar precio de variante
   const updateVariantPrice = (variantId, price) => {
     setVariantCombinations(prev =>
@@ -263,6 +271,7 @@ export const useProductFormManager = () => {
     variantCombinations,
     setVariantCombinations,
     predefinedColors,
+    predefinedTypes,
     predefinedSizes,
 
     // Funciones del formulario básico
@@ -283,6 +292,7 @@ export const useProductFormManager = () => {
     generateVariantCombinations,
     updateVariantPrice,
     updateVariantStock,
-    resetVariants
+    resetVariants,
+    onSelectPredefinedType
   };
 };

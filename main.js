@@ -135,6 +135,33 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
   }
 });
 
+ipcMain.handle('save-predefined-type', async (event, directoryPath, newType) => {
+  const configPath = path.join(directoryPath, 'config.json');
+  try {
+    let config = {};
+    try {
+      const configContent = await fs.readFile(configPath, 'utf-8');
+      config = JSON.parse(configContent);
+    } catch (error) {
+      // Si el archivo no existe o hay un error de parseo, empezamos con un objeto vacío.
+      if (error.code !== 'ENOENT') console.error('Error reading or parsing config for update:', error);
+    }
+
+    if (!config.variants) config.variants = {};
+    if (!config.variants.predefinedTypes) config.variants.predefinedTypes = [];
+
+    // Evitar duplicados
+    if (!config.variants.predefinedTypes.some(pt => pt.name.toLowerCase() === newType.name.toLowerCase())) {
+      config.variants.predefinedTypes.push(newType);
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    }
+    return { success: true, config };
+  } catch (error) {
+    console.error('Error saving predefined type:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('save-product', async (event, csvPath, productData, variants) => {
   try {
     // Función para generar un identificador de URL único y limpio.

@@ -146,6 +146,21 @@ const TiendaNubeProductManager = () => {
     setIsProcessing(true);
 
     try {
+      // Guardar nuevo tipo de variante si es necesario
+      if (productForm.useType && productForm.typeName && productForm.typeValues) {
+        const isNew = !productForm.predefinedTypes.some(pt => pt.name.toLowerCase() === productForm.typeName.toLowerCase());
+        if (isNew) {
+          const newType = {
+            name: productForm.typeName,
+            values: productForm.typeValues.split('\n').map(v => v.trim()).filter(Boolean)
+          };
+          if (window.electronAPI) {
+            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, newType);
+            if (result.success) productForm.loadConfig(result.config);
+          }
+        }
+      }
+
       // Guardar la imagen editada ANTES de cualquier otra cosa
       await imageManager.saveCurrentImageIfEdited();
 
@@ -175,6 +190,21 @@ const TiendaNubeProductManager = () => {
     setIsProcessing(true);
 
     try {
+      // Guardar nuevo tipo de variante si es necesario
+      if (productForm.useType && productForm.typeName && productForm.typeValues) {
+        const isNew = !productForm.predefinedTypes.some(pt => pt.name.toLowerCase() === productForm.typeName.toLowerCase());
+        if (isNew) {
+          const newType = {
+            name: productForm.typeName,
+            values: productForm.typeValues.split('\n').map(v => v.trim()).filter(Boolean)
+          };
+          if (window.electronAPI) {
+            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, newType);
+            if (result.success) productForm.loadConfig(result.config);
+          }
+        }
+      }
+
       const nextFilename = await productManager.skipProduct(
         imageManager.resetImageState,
         productForm.resetForm
@@ -313,6 +343,8 @@ const TiendaNubeProductManager = () => {
               variantCombinations={productForm.variantCombinations}
               predefinedColors={productForm.predefinedColors}
               predefinedSizes={productForm.predefinedSizes}
+              predefinedTypes={productForm.predefinedTypes}
+              onSelectPredefinedType={productForm.onSelectPredefinedType}
 
               // Funciones de variantes
               onToggleColor={productForm.toggleColor}
