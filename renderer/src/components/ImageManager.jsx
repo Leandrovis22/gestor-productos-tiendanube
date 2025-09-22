@@ -279,8 +279,8 @@ export const ImageManager = ({
 
   // Componente de miniaturas (movido aquí)
   const ProductThumbnails = () => {
-    if (activeTab !== 'general' || currentProductAllImages.length <= 1) {
-      return null;
+    if (currentProductAllImages.length <= 1) {
+      return null; // No mostrar si solo hay una imagen o ninguna
     }
 
     return (
