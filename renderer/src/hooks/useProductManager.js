@@ -232,6 +232,7 @@ export const useProductManager = () => {
       const prevStr = JSON.stringify(prev);
       const newStr = JSON.stringify(uniqueImages);
       if (prevStr !== newStr) {
+        console.log('🖼️ updateThumbnails: Actualizando currentProductAllImages de', prev.length, 'a', uniqueImages.length, 'imágenes');
         return uniqueImages;
       }
       return prev;

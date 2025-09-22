@@ -282,6 +282,11 @@ export const ImageManager = ({
     }
   }, [imageManager.zoomFactor, imageManager.currentImage]);
 
+  // Efecto para forzar re-render de miniaturas cuando cambian las imágenes del producto
+  useEffect(() => {
+    console.log('🖼️ ImageManager: currentProductAllImages actualizado:', currentProductAllImages);
+  }, [currentProductAllImages]);
+
   useEffect(() => {
     const handleResize = () => {
       if (imageManager.currentImage) {
@@ -313,6 +318,8 @@ export const ImageManager = ({
 
   // Componente de miniaturas (movido aquí)
   const ProductThumbnails = () => {
+    console.log('🖼️ ProductThumbnails renderizado con:', currentProductAllImages.length, 'imágenes');
+    
     if (currentProductAllImages.length <= 1) {
       return null; // No mostrar si solo hay una imagen o ninguna
     }

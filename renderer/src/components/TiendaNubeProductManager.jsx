@@ -323,6 +323,7 @@ const TiendaNubeProductManager = () => {
       ) : (
         <div className="flex flex-1 overflow-hidden">
           <ImageManager 
+            key={`${productManager.currentMainProductImage}-${productManager.currentProductAllImages.length}`}
             workingDirectory={productManager.workingDirectory}
             currentProductAllImages={productManager.currentProductAllImages}
             currentMainProductImage={productManager.currentMainProductImage}
