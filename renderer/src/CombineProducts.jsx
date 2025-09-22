@@ -186,7 +186,12 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       await window.electronAPI.removeProductsFromResultado(resultadoPath, secondaryImages);
 
       // 4. Update local state
-      setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img) && img !== primaryImage));
+      // Solo eliminar las imágenes secundarias, mantener el producto principal
+      setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
+      
+      // Agregar el producto principal al set de productos principales existentes
+      setExistingPrimaryImages(prev => new Set([...prev, primaryImage]));
+      
       setSelectedImages([]);
       setPrimaryImage(null);
       setSelectedPropertyGroup(null); // This is correct
