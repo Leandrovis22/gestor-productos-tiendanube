@@ -348,7 +348,7 @@ ipcMain.handle('update-product-in-resultado', async (event, resultadoPath, prima
     }
 
     // Read the CSV file
-    const csvContent = await fs.readFile(resultadoPath, 'latin1');
+    const csvContent = await fs.readFile(resultadoPath, 'utf8');
     const lines = csvContent.split('\n').filter(line => line.trim());
     
     if (lines.length === 0) {
@@ -386,7 +386,7 @@ ipcMain.handle('update-product-in-resultado', async (event, resultadoPath, prima
 
     if (updated) {
       // Write back to file
-      await fs.writeFile(resultadoPath, updatedLines.join('\n') + '\n', 'latin1');
+      await fs.writeFile(resultadoPath, updatedLines.join('\n') + '\n', 'utf8');
       console.log(`Updated product ${primaryImageName} in resultado.csv with new properties`);
     }
 
@@ -407,7 +407,7 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
     }
 
     // Read the CSV file
-    const csvContent = await fs.readFile(resultadoPath, 'latin1');
+    const csvContent = await fs.readFile(resultadoPath, 'utf8');
     const lines = csvContent.split('\n').filter(line => line.trim());
     
     if (lines.length === 0) {
@@ -423,7 +423,7 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
 
     if (removedCount > 0) {
       // Write back to file
-      await fs.writeFile(resultadoPath, filteredLines.join('\n') + '\n', 'latin1');
+      await fs.writeFile(resultadoPath, filteredLines.join('\n') + '\n', 'utf8');
       console.log(`Removed ${removedCount} products from resultado.csv`);
     }
 
