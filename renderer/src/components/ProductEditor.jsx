@@ -1,5 +1,6 @@
 // components/ProductEditor.js
 import React from 'react';
+import { CategoryGroups } from './CategoryGroups';
 
 // Sección del formulario general (movido fuera del componente principal)
 const GeneralForm = ({
@@ -9,8 +10,8 @@ const GeneralForm = ({
   setProductPrice,
   productStock,
   setProductStock,
-  selectedCategories,
-  categories,
+  selectedCategoriesSet, // Renombrado para claridad
+  categories, // Necesitamos la lista plana de categorías
   onToggleCategory,
 }) => (
   <div>
@@ -48,10 +49,10 @@ const GeneralForm = ({
     <div className="mt-4">
       <div className="mb-4">
         <h3 className="text-lg font-medium mb-2">Categorías Activas</h3>
-        <div className="p-3 bg-gray-800 border border-gray-700 rounded min-h-[60px]">
-          {selectedCategories.length > 0 ? (
+        <div className="p-3 bg-gray-800 border border-gray-700 rounded min-h-[50px]">
+          {selectedCategoriesSet.size > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {selectedCategories.map(cat => (
+              {[...selectedCategoriesSet].map(cat => (
                 <span key={cat} className="bg-blue-600 text-white text-xs font-medium px-2.5 py-1 rounded-full">
                   {cat}
                 </span>
@@ -64,22 +65,12 @@ const GeneralForm = ({
       </div>
 
       <h3 className="text-lg font-medium mb-2">Todas las Categorías</h3>
-      <div className="max-h-64 overflow-y-auto border border-gray-700 rounded p-2 bg-gray-800">
-        <div className="grid grid-cols-2 gap-2">
-          {categories.map(category => (
-            <button
-              key={category}
-              onClick={() => onToggleCategory(category)}
-              className={`w-full text-left text-sm px-3 py-2 rounded ${
-                selectedCategories.includes(category)
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 hover:bg-gray-600'
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
+      <div className="max-h-[17rem] overflow-y-auto border border-gray-700 rounded p-4 bg-gray-800">
+        <CategoryGroups
+          categories={categories}
+          selectedCategories={selectedCategoriesSet}
+          onToggleCategory={onToggleCategory}
+        />
       </div>
     </div>
   </div>
@@ -382,7 +373,7 @@ export const ProductEditor = ({
           setProductPrice={setProductPrice}
           productStock={productStock}
           setProductStock={setProductStock}
-          selectedCategories={selectedCategories}
+          selectedCategoriesSet={selectedCategories} // Pasamos el Set
           categories={categories}
           onToggleCategory={onToggleCategory}
         />;
@@ -402,7 +393,7 @@ export const ProductEditor = ({
           setProductPrice={setProductPrice}
           productStock={productStock}
           setProductStock={setProductStock}
-          selectedCategories={selectedCategories}
+          selectedCategoriesSet={selectedCategories} // Pasamos el Set
           categories={categories}
           onToggleCategory={onToggleCategory}
         />;

@@ -324,6 +324,7 @@ const TiendaNubeProductManager = () => {
               productStock={productForm.productStock}
               setProductStock={productForm.setProductStock}
               selectedCategories={productForm.selectedCategories}
+              categoryTree={productForm.categoryTree}
               categories={productForm.categories}
               onToggleCategory={productForm.toggleCategory}
 

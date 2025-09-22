@@ -1,12 +1,38 @@
 // hooks/useProductFormManager.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+
+/**
+ * Construye una estructura de árbol a partir de una lista plana de categorías.
+ * @param {string[]} categories - Array de strings de categorías (ej: "Ropa > Camisetas").
+ * @returns {object} - Un objeto que representa la estructura del árbol.
+ */
+const buildCategoryTree = (categories) => {
+  const tree = {};
+
+  categories.forEach(fullPath => {
+    const parts = fullPath.split(' > ');
+    let currentNode = tree;
+
+    parts.forEach((part, index) => {
+      if (!currentNode[part]) {
+        currentNode[part] = {
+          _children: {},
+          _fullPath: parts.slice(0, index + 1).join(' > '),
+        };
+      }
+      currentNode = currentNode[part]._children;
+    });
+  });
+
+  return tree;
+};
 
 export const useProductFormManager = () => {
   // Estados del formulario básico
   const [productName, setProductName] = useState('');
   const [productPrice, setProductPrice] = useState('');
   const [productStock, setProductStock] = useState('10');
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState(new Set());
   const [originalCategories, setOriginalCategories] = useState(''); // Categorías originales del CSV
 
   // Estados de variantes
@@ -27,6 +53,9 @@ export const useProductFormManager = () => {
   const [defaultTypeName, setDefaultTypeName] = useState('');
   const [defaultTypeValues, setDefaultTypeValues] = useState('');
 
+  // Generar el árbol de categorías usando useMemo para eficiencia
+  const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
+
   // Cargar configuración desde el hook principal
   const loadConfig = (config) => {
     if (config) {
@@ -41,7 +70,10 @@ export const useProductFormManager = () => {
         
         // Combina ambas listas, evitando duplicados por nombre.
         const combined = [...oldTypes, ...newTypes];
-        const uniqueTypes = Array.from(new Map(combined.map(item => [item.name.toLowerCase(), item])).values());
+        const uniqueTypes = Array.from(new Map(
+          combined
+            .filter(item => item && item.name) // <-- AÑADIDO: Filtra objetos inválidos o sin nombre.
+            .map(item => [item.name.toLowerCase(), item])).values());
 
         const rawTypes = uniqueTypes;
         const normalizedTypes = rawTypes.map(type => {
@@ -75,7 +107,7 @@ export const useProductFormManager = () => {
   const loadProductData = (filename, data) => {
     const row = data.find(r => r.archivo === filename);
 
-    setSelectedCategories([]);
+    setSelectedCategories(new Set());
 
     if (row) {
 
@@ -84,7 +116,7 @@ export const useProductFormManager = () => {
       setOriginalCategories(row.categorias || '');
 
       if (row.categorias) {
-        const cats = row.categorias.split(',').map(c => c.trim());
+        const cats = new Set(row.categorias.split(',').map(c => c.trim()));
         setSelectedCategories(cats);
       }
     } else {
@@ -99,11 +131,15 @@ export const useProductFormManager = () => {
 
   // Toggle de categorías
   const toggleCategory = (category) => {
-    setSelectedCategories(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
   };
 
   // Toggle de colores
@@ -251,7 +287,7 @@ export const useProductFormManager = () => {
       productName,
       productPrice,
       productStock,
-      selectedCategories,
+      selectedCategories: [...selectedCategories], // Convertir Set a Array para guardar
       originalCategories
     };
   };
@@ -273,6 +309,7 @@ export const useProductFormManager = () => {
     setSelectedCategories,
     originalCategories,
     categories,
+    categoryTree,
 
     // Estados de variantes
     useColor,
