@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "concurrently": "^7.0.0",
-    "electron": "^26.0.0",
     "fs-extra": "^11.3.2",
     "opencv.js": "^1.2.1",
     "papaparse": "^5.4.1",
@@ -20,7 +19,33 @@
     "wait-on": "^7.0.0"
   },
   "devDependencies": {
+    "electron": "^26.0.0",
     "electron-builder": "^24.0.0",
     "electronmon": "^2.0.3"
+  },
+  "build": {
+    "appId": "com.tiendanube.gestor",
+    "productName": "Gestor Productos TiendaNube",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "renderer/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/electron/dist/",
+        "to": "./",
+        "filter": [
+          "ffmpeg.dll"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
   }
 }
