@@ -684,27 +684,116 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
   }
 });
 
-// Helper function to run Python inpainting script
-function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius = 3) {
-  return new Promise((resolve) => {
-    // Try different Python commands
-    const pythonCommands = ['python3', 'python', 'py'];
-    let currentCommandIndex = 0;
+// Nuevas funciones python:
+
+let cachedScriptPath = null;
+
+// Función para asegurar que el script Python existe
+async function ensurePythonScript() {
+  if (cachedScriptPath && await fs.access(cachedScriptPath).then(() => true).catch(() => false)) {
+    return cachedScriptPath;
+  }
+  
+  // Crear directorio permanente para el script
+  const scriptsDir = path.join(os.homedir(), '.gestor-productos', 'scripts');
+  await fs.mkdir(scriptsDir, { recursive: true });
+  
+  const scriptPath = path.join(scriptsDir, 'inpaint.py');
+  
+  // Script Python optimizado
+  const pythonScript = `#!/usr/bin/env python3
+import sys
+import cv2
+import numpy as np
+import os
+
+def main():
+    if len(sys.argv) != 5:
+        print("ERROR: Uso incorrecto", file=sys.stderr)
+        sys.exit(1)
     
-    function tryNextCommand() {
-      if (currentCommandIndex >= pythonCommands.length) {
-        resolve({
-          success: false,
-          error: 'No working Python interpreter found. Please install Python and ensure it\'s in PATH.'
-        });
-        return;
-      }
+    image_path = sys.argv[1]
+    mask_path = sys.argv[2]
+    output_path = sys.argv[3]
+    radius = int(sys.argv[4])
+    
+    try:
+        if not os.path.exists(image_path):
+            print(f"ERROR: Imagen no encontrada: {image_path}", file=sys.stderr)
+            sys.exit(1)
+            
+        if not os.path.exists(mask_path):
+            print(f"ERROR: Máscara no encontrada: {mask_path}", file=sys.stderr)
+            sys.exit(1)
+        
+        image = cv2.imread(image_path)
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        
+        if image is None:
+            print(f"ERROR: No se pudo cargar la imagen", file=sys.stderr)
+            sys.exit(1)
+            
+        if mask is None:
+            print(f"ERROR: No se pudo cargar la máscara", file=sys.stderr)
+            sys.exit(1)
+        
+        if mask.shape[:2] != image.shape[:2]:
+            mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
+        
+        _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+        result = cv2.inpaint(image, mask, radius, cv2.INPAINT_TELEA)
+        
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        
+        success = cv2.imwrite(output_path, result, [cv2.IMWRITE_JPEG_QUALITY, 98])
+        
+        if success:
+            print(output_path)
+        else:
+            print(f"ERROR: No se pudo guardar: {output_path}", file=sys.stderr)
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"ERROR: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+`;
+  
+  // Escribir script solo si no existe o necesita actualización
+  try {
+    await fs.writeFile(scriptPath, pythonScript, 'utf-8');
+    cachedScriptPath = scriptPath;
+    console.log(`✅ Script Python creado en: ${scriptPath}`);
+    return scriptPath;
+  } catch (error) {
+    console.error('❌ Error creando script Python:', error);
+    throw error;
+  }
+}
+
+async function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius = 3) {
+  return new Promise(async (resolve) => {
+    try {
+      // Asegurar que el script Python existe
+      const actualScriptPath = await ensurePythonScript();
       
-      const pythonCmd = pythonCommands[currentCommandIndex];
-      const args = [scriptPath, imagePath, maskPath, outputPath, radius.toString()];
+      // Normalizar rutas
+      const normalizedImagePath = path.normalize(imagePath);
+      const normalizedMaskPath = path.normalize(maskPath);
+      const normalizedOutputPath = path.normalize(outputPath);
       
-      const pythonProcess = spawn(pythonCmd, args, {
-        stdio: ['ignore', 'pipe', 'pipe']
+      const args = ['-3', actualScriptPath, normalizedImagePath, normalizedMaskPath, normalizedOutputPath, radius.toString()];
+      
+      console.log(`🐍 Ejecutando inpainting...`);
+      
+      const pythonProcess = spawn('py', args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true,
+        windowsHide: true
       });
       
       let stdout = '';
@@ -719,28 +808,92 @@ function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, radius
       });
       
       pythonProcess.on('close', (code) => {
-        if (code === 0) {
+        console.log(`🔚 Proceso terminó con código: ${code}`);
+        if (stderr) console.log(`❌ STDERR: ${stderr}`);
         
+        if (code === 0) {
           resolve({
             success: true,
-            output: stdout.trim() // Trim whitespace from output
+            output: stdout.trim()
           });
         } else {
-          
-          // If this command failed, try the next one
-          currentCommandIndex++;
-          tryNextCommand();
+          resolve({
+            success: false,
+            error: `Python inpainting falló. Código: ${code}\nError: ${stderr}`
+          });
         }
       });
       
       pythonProcess.on('error', (error) => {
-        // If this command errored, try the next one
-        currentCommandIndex++;
-        tryNextCommand();
+        console.log(`❌ Error spawn:`, error.message);
+        resolve({
+          success: false,
+          error: `No se pudo ejecutar Python. Error: ${error.message}`
+        });
+      });
+      
+    } catch (setupError) {
+      console.error('❌ Error preparando script:', setupError);
+      resolve({
+        success: false,
+        error: `Error preparando inpainting: ${setupError.message}`
       });
     }
+  });
+}
+
+// 2. REEMPLAZA la función checkPythonAndPackages existente (línea ~410 aprox) con esta:
+function checkPythonAndPackages() {
+  return new Promise((resolve) => {
+    console.log('🔍 Verificando Python 3.13 y dependencias...');
     
-    tryNextCommand();
+    const pythonProcess = spawn('py', ['-3', '-c', 'import cv2, numpy; print("OK")'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0 && stdout.trim() === 'OK') {
+        resolve({
+          success: true,
+          message: '✅ Python 3.13 y dependencias OK',
+          pythonCommand: 'py -3'
+        });
+      } else {
+        let errorMsg = '❌ Problema con Python o dependencias.\n\n';
+        
+        if (stderr.includes('No Python at')) {
+          errorMsg += 'Python 3.13 no encontrado. Instala desde python.org\n';
+        } else if (stderr.includes('No module named')) {
+          errorMsg += 'Dependencias faltantes. Ejecuta:\npy -3 -m pip install opencv-python numpy\n';
+        } else {
+          errorMsg += `Error: ${stderr}\n`;
+        }
+        
+        resolve({
+          success: false,
+          error: errorMsg
+        });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      resolve({
+        success: false,
+        error: 'Python Launcher no encontrado. Reinstala Python 3.13 y marca "Add Python to PATH"'
+      });
+    });
   });
 }
 
@@ -757,75 +910,6 @@ ipcMain.handle('check-python-dependencies', async () => {
   }
 });
 
-// Helper function to check Python dependencies
-function checkPythonAndPackages() {
-  return new Promise((resolve) => {
-    const pythonCommands = ['python3', 'python', 'py'];
-    let results = [];
-    let completed = 0;
-    
-    pythonCommands.forEach((cmd) => {
-      const pythonProcess = spawn(cmd, ['-c', 'import cv2, numpy; print("OK")'], {
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      pythonProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      pythonProcess.on('close', (code) => {
-        results.push({
-          command: cmd,
-          success: code === 0 && stdout.trim() === 'OK',
-          output: stdout,
-          error: stderr
-        });
-        
-        completed++;
-        if (completed === pythonCommands.length) {
-          const workingResult = results.find(r => r.success);
-          if (workingResult) {
-            resolve({
-              success: true,
-              pythonCommand: workingResult.command,
-              message: `Python dependencies OK (using ${workingResult.command})`
-            });
-          } else {
-            resolve({
-              success: false,
-              error: 'Python or required packages (opencv-python, numpy) not found. Please install them.',
-              details: results
-            });
-          }
-        }
-      });
-      
-      pythonProcess.on('error', (error) => {
-        results.push({
-          command: cmd,
-          success: false,
-          error: error.message
-        });
-        
-        completed++;
-        if (completed === pythonCommands.length) {
-          resolve({
-            success: false,
-            error: 'No working Python interpreter found.',
-            details: results
-          });
-        }
-      });
-    });
-  });
-}
 
 // Handler para obtener información detallada de una imagen
 ipcMain.handle('get-image-info', async (event, imagePath) => {
