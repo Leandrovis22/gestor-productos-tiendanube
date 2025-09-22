@@ -247,32 +247,34 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-        {imagesInDirectory.map(imageName => (
-          <div
-            key={imageName}
-            className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${getBorderColor(imageName)}`}
-            onClick={() => toggleImageSelection(imageName)}
-          >
-            <InlineLocalImage
-              path={window.electronAPI.joinPaths(workingDirectory, imageName)}
-              alt={imageName}
-              className="w-full h-32 object-cover"
-            />
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate">{imageName}</div>
-            {selectedImages.includes(imageName) && (
-              <div className="absolute top-1 right-1">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setPrimaryImage(imageName); }}
-                  className={`w-6 h-6 rounded-full text-xs font-bold ${imageName === primaryImage ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-800 hover:bg-yellow-300'}`}
-                  title="Marcar como principal"
-                >
-                  P
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+          {imagesInDirectory.map(imageName => (
+            <div
+              key={imageName}
+              className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${getBorderColor(imageName)}`}
+              onClick={() => toggleImageSelection(imageName)}
+            >
+              <InlineLocalImage
+                path={window.electronAPI.joinPaths(workingDirectory, imageName)}
+                alt={imageName}
+                className="w-full h-32 object-cover"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate">{imageName}</div>
+              {selectedImages.includes(imageName) && (
+                <div className="absolute top-1 right-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPrimaryImage(imageName); }}
+                    className={`w-6 h-6 rounded-full text-xs font-bold ${imageName === primaryImage ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-800 hover:bg-yellow-300'}`}
+                    title="Marcar como principal"
+                  >
+                    P
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {isModalOpen && (

@@ -10,7 +10,7 @@ const GeneralForm = ({
   setProductPrice,
   productStock,
   setProductStock,
-  selectedCategoriesSet, // Renombrado para claridad
+  selectedCategories,
   categories, // Necesitamos la lista plana de categorías
   onToggleCategory,
 }) => (
@@ -50,9 +50,9 @@ const GeneralForm = ({
       <div className="mb-4">
         <h3 className="text-lg font-medium mb-2">Categorías Activas</h3>
         <div className="p-3 bg-gray-800 border border-gray-700 rounded min-h-[50px]">
-          {selectedCategoriesSet.size > 0 ? (
+          {selectedCategories.size > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {[...selectedCategoriesSet].map(cat => (
+              {[...selectedCategories].map(cat => (
                 <span key={cat} className="bg-blue-600 text-white text-xs font-medium px-2.5 py-1 rounded-full">
                   {cat}
                 </span>
@@ -68,7 +68,7 @@ const GeneralForm = ({
       <div className="max-h-[17rem] overflow-y-auto border border-gray-700 rounded p-4 bg-gray-800">
         <CategoryGroups
           categories={categories}
-          selectedCategories={selectedCategoriesSet}
+          selectedCategories={selectedCategories}
           onToggleCategory={onToggleCategory}
         />
       </div>
@@ -373,7 +373,7 @@ export const ProductEditor = ({
           setProductPrice={setProductPrice}
           productStock={productStock}
           setProductStock={setProductStock}
-          selectedCategoriesSet={selectedCategories} // Pasamos el Set
+          selectedCategories={selectedCategories}
           categories={categories}
           onToggleCategory={onToggleCategory}
         />;
@@ -393,7 +393,7 @@ export const ProductEditor = ({
           setProductPrice={setProductPrice}
           productStock={productStock}
           setProductStock={setProductStock}
-          selectedCategoriesSet={selectedCategories} // Pasamos el Set
+          selectedCategories={selectedCategories}
           categories={categories}
           onToggleCategory={onToggleCategory}
         />;

@@ -265,7 +265,7 @@ export const useProductFormManager = () => {
     setProductName('');
     setProductPrice('');
     setProductStock('10');
-    setSelectedCategories([]);
+    setSelectedCategories(new Set());
     setOriginalCategories('');
     resetVariants();
   };
