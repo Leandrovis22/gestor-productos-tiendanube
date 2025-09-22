@@ -127,8 +127,70 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
     return JSON.parse(configContent);
   } catch (error) {
     if (error.code === 'ENOENT') {
-      console.warn(`Config file not found at ${configPath}. Using default values.`);
-      return null; // El frontend usará valores por defecto
+      console.warn(`Config file not found at ${configPath}. Creating a new one with default values.`);
+      const defaultConfig = {
+        "categories": [
+          "Plata > Conjuntos", "Plata > Cadenas", "Plata > Dijes", "Plata > Aros > Argollas",
+          "Plata > Aros > Aros Pasantes", "Plata > Aros > Abridores", "Plata > Anillos",
+          "Plata > Anillos > Alianzas", "Plata > Pulseras", "Plata > Esclavas",
+          "Acero > Acero Blanco > Conjuntos", "Acero > Acero Blanco > Cadenas",
+          "Acero > Acero Blanco > Dijes", "Acero > Acero Blanco > Aros > Argollas",
+          "Acero > Acero Blanco > Aros > Aros Pasantes", "Acero > Acero Blanco > Aros > Abridores",
+          "Acero > Acero Blanco > Aros > Cuff", "Acero > Acero Blanco > Anillos",
+          "Acero > Acero Blanco > Anillos > Alianzas", "Acero > Acero Blanco > Pulseras",
+          "Acero > Acero Blanco > Esclavas", "Acero > Acero Quirúrgico > Conjuntos",
+          "Acero > Acero Quirúrgico > Cadenas", "Acero > Acero Quirúrgico > Dijes",
+          "Acero > Acero Quirúrgico > Aros > Argollas", "Acero > Acero Quirúrgico > Aros > Aros Pasantes",
+          "Acero > Acero Quirúrgico > Aros > Abridores", "Acero > Acero Quirúrgico > Anillos",
+          "Acero > Acero Quirúrgico > Anillos > Alianzas", "Acero > Acero Quirúrgico > Pulseras",
+          "Acero > Acero Quirúrgico > Esclavas", "Acero > Acero Dorado > Conjuntos",
+          "Acero > Acero Dorado > Cadenas", "Acero > Acero Dorado > Dijes",
+          "Acero > Acero Dorado > Aros > Argollas", "Acero > Acero Dorado > Aros > Aros Pasantes",
+          "Acero > Acero Dorado > Aros > Abridores", "Acero > Acero Dorado > Anillos",
+          "Acero > Acero Dorado > Anillos > Alianzas", "Acero > Acero Dorado > Pulseras",
+          "Acero > Acero Dorado > Esclavas", "Alhajero", "Cristal", "Pulseras"
+        ],
+        "variants": {
+          "colors": [
+            "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste", "Fucsia", "Gris",
+            "Marrón", "Naranja", "Negro", "Plata", "Rojo", "Rosa", "Verde", "Violeta",
+            "Transparente", "Multicolor"
+          ],
+          "sizes": ["XS", "S", "M", "L", "XL", "XXL"],
+          "types": [
+            {
+              "name": "Alianzas",
+              "values": "Acero dorado\nAcero blanco"
+            },
+            {
+              "name": "Conjuntos de plata",
+              "values": "Colibri\nDije transparente\nDije perla\nDije naranja\nNudo de bruja negro\nMedalla\nDije rosado\nDije rojo\nNudo de bruja\nVirgen niña"
+            },
+            {
+              "name": "Aros pasantes",
+              "values": "Mariposa Perlas Rosa\nMariposa Perlas Roja\nMariposa Amarillo Rojo y Azul\nMariposa Cristal Celeste\nMariposa Violeta\nMariposa Naranja\nFlor\nMejillón perla\nEstrella mejillón perla\nCorazón"
+            },
+            {
+              "name": "Aros argolla plata",
+              "values": "Canasta Picos\nCorazón\nCanasta Lisa\nHoja hueca\nHoja\nTrenza\nCalado\nCanasta\nCorazón Latido\nLineas\nTurbillon\nBola arenada\nColgante redondo\nColgante cuadrado\nGota\nSusanito grande\nSusanito chico\nEstrella\nInflado"
+            },
+            {
+              "name": "Material",
+              "values": "Acero blanco\nAcero dorado"
+            }
+          ],
+          "predefinedTypes": [
+            {}
+          ]
+        }
+      };
+      try {
+        await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+        return defaultConfig;
+      } catch (writeError) {
+        console.error('Error creating default config file:', writeError);
+        throw writeError; // Re-throw error if we can't create the file
+      }
     }
     console.error('Error reading config file:', error);
     throw error;
