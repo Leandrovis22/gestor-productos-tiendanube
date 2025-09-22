@@ -237,26 +237,25 @@ const VariantsForm = ({
             </div>
             {useType && (
               <div className="flex gap-4 mt-4">
-                {/* Columna de Inputs (1/4) */}
-                <div className="w-1/4 flex flex-col gap-2">
+                {/* Columna de Input de Valores */}
+                <div className="w-[50%]">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Valores (uno por línea):</label>
                     <textarea 
                       placeholder="Valor A&#10;Valor B&#10;Valor C"
                       value={typeValues} 
                       onChange={handleTypeValuesChange} 
-                      className="w-full h-40 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
+                      className="w-full h-48 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
                     <p className="text-xs text-gray-500 mt-1">(Un valor por línea)</p>
                   </div>
                 </div>
 
-                {/* Columna de Sugerencias (3/4) */}
-                <div className="w-3/4">
-                  {/* Sugerencias de Tipos */}
+                {/* Columna de Sugerencias de Tipos */}
+                <div className="w-1/2">
                   {filteredTypes.length > 0 && (
-                    <div className="mb-4">
+                    <div>
                       <p className="text-sm text-gray-300 mb-2">Sugerencias de Tipos:</p>
-                      <div className="max-h-40 overflow-y-auto flex flex-col gap-1 pr-2">
+                      <div className="max-h-48 overflow-y-auto flex flex-col gap-1 pr-2">
                         {filteredTypes.map(pt => (
                           <button key={pt.name} onClick={() => onSelectPredefinedType(pt)} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
                             {pt.name}
@@ -265,11 +264,13 @@ const VariantsForm = ({
                       </div>
                     </div>
                   )}
-                  {/* Sugerencias de Valores */}
+                </div>
+                {/* Columna de Sugerencias de Valores */}
+                <div className="w-1/2">
                   {valueSuggestions.length > 0 && (
                     <div>
                       <p className="text-sm text-gray-300 mb-2">Sugerencias de Valores:</p>
-                      <div className="max-h-40 overflow-y-auto flex flex-col gap-1 pr-2">
+                      <div className="max-h-48 overflow-y-auto flex flex-col gap-1 pr-2">
                         {valueSuggestions.map(({ value, type }) => (
                           <button key={`${type.name}-${value}`} onClick={() => { onSelectPredefinedType(type, value); setValueSuggestions([]); }} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
                             {value} <span className="text-gray-400">({type.name})</span>

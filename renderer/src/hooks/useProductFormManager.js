@@ -24,8 +24,8 @@ export const useProductFormManager = () => {
   const [predefinedColors, setPredefinedColors] = useState([]);
   const [predefinedSizes, setPredefinedSizes] = useState([]);
   const [predefinedTypes, setPredefinedTypes] = useState([]);
-  const [defaultTypeName, setDefaultTypeName] = useState('Tipo');
-  const [defaultTypeValues, setDefaultTypeValues] = useState('Modelo A\nModelo B\nModelo C');
+  const [defaultTypeName, setDefaultTypeName] = useState('');
+  const [defaultTypeValues, setDefaultTypeValues] = useState('');
 
   // Cargar configuración desde el hook principal
   const loadConfig = (config) => {
