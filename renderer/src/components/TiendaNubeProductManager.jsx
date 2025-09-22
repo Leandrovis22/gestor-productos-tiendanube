@@ -35,7 +35,7 @@ const FileSelector = ({ productManager }) => (
 
     <span className="text-gray-300">
       {productManager.csvPath ? (
-        <div className="text-sm">
+        <div className="text-[0.7rem]">
           <div>CSV: {productManager.csvPath.split('/').pop()}</div>
           <div className="text-xs text-gray-400">
             Carpeta: {productManager.workingDirectory ? productManager.workingDirectory.split('/').pop() : 'No seleccionada'}
@@ -249,10 +249,9 @@ const TiendaNubeProductManager = () => {
       <div className="flex items-center justify-between">
         <FileSelector productManager={productManager} />
         <div className="flex items-center gap-4">
-          <div className="text-right text-sm text-gray-300">
+          <div className="text-right text-xs text-gray-300">
             <div>{productManager.currentImageIndex + 1}/{productManager.imageQueue.length} productos</div>
             <div>{productManager.currentMainProductImage || ''}</div>
-            <div>CSV: {productManager.outputCsvPath ? 'salida.csv' : 'No creado'}</div>
           </div>
           <button
             onClick={handleSkipProduct}
