@@ -1,4 +1,5 @@
 // components/ProductEditor.js
+import React from 'react';
 
 // Sección del formulario general (movido fuera del componente principal)
 const GeneralForm = ({
@@ -92,6 +93,7 @@ const VariantsForm = ({
   typeName, setTypeName, typeValues, setTypeValues, predefinedTypes, onSelectPredefinedType,
   onGenerateVariants, variantCombinations, onUpdateVariantPrice, onUpdateVariantStock
 }) => {
+  const [valueSuggestions, setValueSuggestions] = React.useState([]);
   const colorMap = {
     Amarillo: '#FFD700', Azul: '#0000FF', Beige: '#F5F5DC', Blanco: '#FFFFFF', Bordó: '#800000',
     Celeste: '#87CEEB', Fucsia: '#FF00FF', Gris: '#808080', Marrón: '#A52A2A', Naranja: '#FFA500',
@@ -108,7 +110,31 @@ const VariantsForm = ({
     return (yiq >= 128) ? '#000000' : '#FFFFFF';
   };
 
-  const filteredTypes = predefinedTypes.filter(pt => pt.name.toLowerCase().includes(typeName.toLowerCase()));
+  // Muestra todos los tipos si el input está vacío, o filtra si se está escribiendo.
+  const filteredTypes = typeName.trim() === ''
+    ? predefinedTypes
+    : predefinedTypes.filter(pt => pt.name.toLowerCase().includes(typeName.toLowerCase()));
+
+  // Manejar cambio en el textarea de valores para mostrar sugerencias
+  const handleTypeValuesChange = (e) => {
+    const currentValue = e.target.value;
+    setTypeValues(currentValue);
+
+    if (currentValue.trim() === '' || currentValue.includes('\n')) {
+      setValueSuggestions([]);
+      return;
+    }
+
+    const suggestions = [];
+    predefinedTypes.forEach(type => {
+      type.values.forEach(value => {
+        if (value.toLowerCase().includes(currentValue.toLowerCase())) {
+          suggestions.push({ value, type });
+        }
+      });
+    });
+    setValueSuggestions(suggestions.slice(0, 10)); // Limitar a 10 sugerencias
+  };
 
   return (
     <div>
@@ -121,7 +147,8 @@ const VariantsForm = ({
       </div>
 
       <div className="p-4">
-        <div className="grid grid-cols-3 gap-4 mb-4">
+        <div className="flex flex-col gap-4 mb-4">
+          <div className="grid grid-cols-2 gap-4">
           {/* Sección de Colores */}
           <div className="border border-gray-600 rounded p-3">
             <label className="flex items-center gap-2 mb-3">
@@ -183,33 +210,75 @@ const VariantsForm = ({
               </div>
             )}
           </div>
+          </div>
 
           {/* Sección de Tipos personalizados */}
           <div className="border border-gray-600 rounded p-3">
             <div className="flex items-center gap-2 mb-3">
-              <input type="checkbox" checked={useType} onChange={(e) => setUseType(e.target.checked)} />
-              <input type="text" placeholder="Tipo (ej: Material)" value={typeName} onChange={(e) => setTypeName(e.target.value)} className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
+              <input type="checkbox" checked={useType} onChange={(e) => setUseType(e.target.checked)} className="flex-shrink-0" />
+              <div className="relative flex-1">
+                <input type="text" placeholder="Tipo (ej: Material)" value={typeName} onChange={(e) => setTypeName(e.target.value)} className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
+                {/* Dropdown para seleccionar tipos predefinidos */}
+                <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                  <select 
+                    onChange={(e) => {
+                      const selectedType = predefinedTypes.find(pt => pt.name === e.target.value);
+                      if (selectedType) onSelectPredefinedType(selectedType);
+                      e.target.value = ''; // Reset select
+                    }}
+                    className="bg-gray-700 border-none rounded text-xs h-5 w-5 appearance-none text-center cursor-pointer"
+                    value=""
+                  >
+                    <option value="" disabled>▼</option>
+                    {predefinedTypes.map(pt => <option key={pt.name} value={pt.name} title={`Valores:\n${pt.values.join('\n')}`}>{pt.name}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
             {useType && (
-              <div>
-                {typeName && filteredTypes.length > 0 && (
-                  <div className="mb-2">
-                    <p className="text-xs text-gray-400 mb-1">Sugerencias:</p>
-                    <div className="max-h-20 overflow-y-auto flex flex-col gap-1">
-                      {filteredTypes.map(pt => (
-                        <button key={pt.name} onClick={() => onSelectPredefinedType(pt)} className="text-left text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">
-                          {pt.name}
-                        </button>
-                      ))}
-                    </div>
+              <div className="flex gap-4">
+                {/* Columna de Inputs (1/4) */}
+                <div className="w-1/4 flex flex-col gap-2">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Valores (uno por línea):</label>
+                    <textarea 
+                      placeholder="Valor A&#10;Valor B&#10;Valor C"
+                      value={typeValues} 
+                      onChange={handleTypeValuesChange} 
+                      className="w-full h-40 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
+                    <p className="text-xs text-gray-500 mt-1">(Un valor por línea)</p>
                   </div>
-                )}
-                <label className="block text-xs text-gray-400 mb-1">Valores (uno por línea):</label>
-                <textarea 
-                  placeholder="Valor A&#10;Valor B&#10;Valor C"
-                  value={typeValues} onChange={(e) => setTypeValues(e.target.value)} 
-                  className="w-full h-24 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
-                <p className="text-xs text-gray-500 mt-1">(Un valor por línea)</p>
+                </div>
+
+                {/* Columna de Sugerencias (3/4) */}
+                <div className="w-3/4">
+                  {/* Sugerencias de Tipos */}
+                  {filteredTypes.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-300 mb-2">Sugerencias de Tipos:</p>
+                      <div className="max-h-28 overflow-y-auto flex flex-col gap-1 pr-2">
+                        {filteredTypes.map(pt => (
+                          <button key={pt.name} onClick={() => onSelectPredefinedType(pt)} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
+                            {pt.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Sugerencias de Valores */}
+                  {valueSuggestions.length > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-300 mb-2">Sugerencias de Valores:</p>
+                      <div className="max-h-28 overflow-y-auto flex flex-col gap-1 pr-2">
+                        {valueSuggestions.map(({ value, type }) => (
+                          <button key={`${type.name}-${value}`} onClick={() => { onSelectPredefinedType(type); setValueSuggestions([]); }} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
+                            {value} <span className="text-gray-400">({type.name})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
