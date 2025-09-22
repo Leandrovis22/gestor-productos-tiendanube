@@ -193,9 +193,13 @@ export const useProductFormManager = () => {
   };
 
   // Seleccionar un tipo predefinido de la lista de sugerencias
-  const onSelectPredefinedType = (predefinedType) => {
+  const onSelectPredefinedType = (predefinedType, singleValue = null) => {
     setTypeName(predefinedType.name);
-    setTypeValues(predefinedType.values.join('\n'));
+    if (singleValue) {
+      setTypeValues(singleValue);
+    } else {
+      setTypeValues(predefinedType.values.join('\n'));
+    }
   };
 
   // Actualizar precio de variante

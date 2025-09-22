@@ -236,7 +236,7 @@ const VariantsForm = ({
               </div>
             </div>
             {useType && (
-              <div className="flex gap-4">
+              <div className="flex gap-4 mt-4">
                 {/* Columna de Inputs (1/4) */}
                 <div className="w-1/4 flex flex-col gap-2">
                   <div>
@@ -256,7 +256,7 @@ const VariantsForm = ({
                   {filteredTypes.length > 0 && (
                     <div className="mb-4">
                       <p className="text-sm text-gray-300 mb-2">Sugerencias de Tipos:</p>
-                      <div className="max-h-28 overflow-y-auto flex flex-col gap-1 pr-2">
+                      <div className="max-h-40 overflow-y-auto flex flex-col gap-1 pr-2">
                         {filteredTypes.map(pt => (
                           <button key={pt.name} onClick={() => onSelectPredefinedType(pt)} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
                             {pt.name}
@@ -269,9 +269,9 @@ const VariantsForm = ({
                   {valueSuggestions.length > 0 && (
                     <div>
                       <p className="text-sm text-gray-300 mb-2">Sugerencias de Valores:</p>
-                      <div className="max-h-28 overflow-y-auto flex flex-col gap-1 pr-2">
+                      <div className="max-h-40 overflow-y-auto flex flex-col gap-1 pr-2">
                         {valueSuggestions.map(({ value, type }) => (
-                          <button key={`${type.name}-${value}`} onClick={() => { onSelectPredefinedType(type); setValueSuggestions([]); }} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
+                          <button key={`${type.name}-${value}`} onClick={() => { onSelectPredefinedType(type, value); setValueSuggestions([]); }} className="text-left text-sm bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded">
                             {value} <span className="text-gray-400">({type.name})</span>
                           </button>
                         ))}
