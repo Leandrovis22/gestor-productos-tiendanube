@@ -31,5 +31,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeProductsFromResultado: (resultadoPath, imagesToRemove) => ipcRenderer.invoke('remove-products-from-resultado', resultadoPath, imagesToRemove),
 
   readConfig: (directoryPath) => ipcRenderer.invoke('read-config', directoryPath),
+  savePredefinedType: (directoryPath, newType) => ipcRenderer.invoke('savePredefinedType', directoryPath, newType),
 
 });

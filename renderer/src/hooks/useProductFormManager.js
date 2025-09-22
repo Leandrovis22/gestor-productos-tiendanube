@@ -34,8 +34,16 @@ export const useProductFormManager = () => {
       if (config.variants) {
         setPredefinedColors(config.variants.colors || []);
         setPredefinedSizes(config.variants.sizes || []);
-        // Compatibilidad: Lee 'types' (antiguo) o 'predefinedTypes' (nuevo) y normaliza los datos.
-        const rawTypes = config.variants.predefinedTypes || config.variants.types || [];
+        
+        // Unifica 'types' (antiguo) y 'predefinedTypes' (nuevo) para máxima compatibilidad.
+        const oldTypes = config.variants.types || [];
+        const newTypes = config.variants.predefinedTypes || [];
+        
+        // Combina ambas listas, evitando duplicados por nombre.
+        const combined = [...oldTypes, ...newTypes];
+        const uniqueTypes = Array.from(new Map(combined.map(item => [item.name.toLowerCase(), item])).values());
+
+        const rawTypes = uniqueTypes;
         const normalizedTypes = rawTypes.map(type => {
           if (typeof type.values === 'string') {
             // Si 'values' es un string, lo convertimos en un array.

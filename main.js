@@ -135,7 +135,7 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
   }
 });
 
-ipcMain.handle('save-predefined-type', async (event, directoryPath, newType) => {
+ipcMain.handle('savePredefinedType', async (event, directoryPath, newType) => {
   const configPath = path.join(directoryPath, 'config.json');
   try {
     let config = {};
