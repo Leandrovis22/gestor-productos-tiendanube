@@ -175,6 +175,9 @@ const TiendaNubeProductManager = () => {
       );
 
       if (nextFilename) {
+        // NUEVA LÍNEA: Recargar el mapa de imágenes antes de cargar el producto
+        await productManager.loadProductImagesMap();
+        
         await loadCurrentProduct(nextFilename, true);
       }
     } catch (error) {
@@ -211,6 +214,9 @@ const TiendaNubeProductManager = () => {
       );
 
       if (nextFilename) {
+        // NUEVA LÍNEA: Recargar el mapa de imágenes antes de cargar el producto
+        await productManager.loadProductImagesMap();
+        
         await loadCurrentProduct(nextFilename, true);
       }
     } catch (error) {
@@ -222,9 +228,24 @@ const TiendaNubeProductManager = () => {
 
   // Manejo de guardado cuando se guardan combinaciones
   const handleCombinationSaved = async () => {
+    console.log('🔄 Iniciando recarga después de combinar productos...');
+    
+    // 1. Recargar el mapa de imágenes de productos
     await productManager.loadProductImagesMap();
+    
+    // 2. Recargar datos CSV
     await productManager.loadCsvData(productManager.csvPath);
+    
+    // 3. Recargar las imágenes desde los datos actualizados
     await productManager.loadImagesFromData(productManager.csvData);
+    
+    // 4. NUEVA LÍNEA: Forzar actualización de thumbnails para el producto actual
+    if (productManager.currentMainProductImage) {
+      console.log('🖼️ Actualizando thumbnails para:', productManager.currentMainProductImage);
+      productManager.updateThumbnails(productManager.currentMainProductImage);
+    }
+    
+    console.log('✅ Recarga completada después de combinar productos');
   };
 
   // Efectos para sincronizar datos

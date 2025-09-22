@@ -203,6 +203,7 @@ export const useProductManager = () => {
 
     if (productImagesMap[mainImageFilename]) {
       allImagesForProduct.push(...productImagesMap[mainImageFilename]);
+      console.log('✅ Encontradas imágenes secundarias para', mainImageFilename, ':', productImagesMap[mainImageFilename]);
     }
 
     let actualMainImage = mainImageFilename;
@@ -211,12 +212,30 @@ export const useProductManager = () => {
         actualMainImage = main;
         allImagesForProduct.splice(0, 1, main);
         allImagesForProduct.push(...secondaries.filter(img => img !== mainImageFilename));
+        console.log('🔄 Imagen es secundaria, usando principal:', actualMainImage);
         break;
       }
     }
 
-    setCurrentMainProductImage(actualMainImage);
-    setCurrentProductAllImages([...new Set(allImagesForProduct)]);
+    const uniqueImages = [...new Set(allImagesForProduct)];
+    
+    // Solo actualizar si realmente cambió algo
+    setCurrentMainProductImage(prev => {
+      if (prev !== actualMainImage) {
+        console.log('� Producto cargado:', actualMainImage, `(${uniqueImages.length} imágenes)`);
+        return actualMainImage;
+      }
+      return prev;
+    });
+    
+    setCurrentProductAllImages(prev => {
+      const prevStr = JSON.stringify(prev);
+      const newStr = JSON.stringify(uniqueImages);
+      if (prevStr !== newStr) {
+        return uniqueImages;
+      }
+      return prev;
+    });
   };
 
   // Guardar producto actual
