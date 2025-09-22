@@ -2,7 +2,41 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import InpaintingTool from '../InpaintingTool';
-import { displayImage as displayImageHelper } from '../helpers';
+
+/**
+ * Dibuja una imagen en un canvas, ajustándola al contenedor y centrada.
+ * @param {HTMLImageElement} img - La imagen a dibujar.
+ * @param {HTMLCanvasElement} canvas - El canvas principal.
+ * @param {number} zoomFactor - El factor de zoom actual.
+ * @returns {{width: number, height: number, x: number, y: number}} - Las dimensiones y offset de la imagen dibujada.
+ */
+export const displayImageHelper = (img, canvas, zoomFactor) => {
+    const ctx = canvas.getContext('2d');
+
+    const rect = canvas.getBoundingClientRect();
+    const containerWidth = Math.max(1, Math.floor(rect.width));
+    const containerHeight = Math.max(1, Math.floor(rect.height));
+
+    const scaleX = containerWidth / img.width;
+    const scaleY = containerHeight / img.height;
+    const scale = Math.min(scaleX, scaleY) * zoomFactor;
+
+    const displayWidth = img.width * scale;
+    const displayHeight = img.height * scale;
+
+    const offsetX = (containerWidth - displayWidth) / 2;
+    const offsetY = (containerHeight - displayHeight) / 2;
+
+    canvas.width = containerWidth;
+    canvas.height = containerHeight;
+    canvas.style.width = `${containerWidth}px`;
+    canvas.style.height = `${containerHeight}px`;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, offsetX, offsetY, displayWidth, displayHeight);
+
+    return { width: displayWidth, height: displayHeight, x: offsetX, y: offsetY };
+};
 
 // Componente para miniaturas de imágenes
 const ProductThumbnailImage = ({ path, alt, className }) => {

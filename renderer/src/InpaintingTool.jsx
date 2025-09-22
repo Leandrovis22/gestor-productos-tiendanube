@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Brush, RotateCcw, Undo } from 'lucide-react';
-import { displayImage as displayImageHelper } from './helpers';
+import { displayImageHelper } from './components/ImageManager';
 
 const InpaintingTool = forwardRef(({ 
   mainCanvasRef, 
