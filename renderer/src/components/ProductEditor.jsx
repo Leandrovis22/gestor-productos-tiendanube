@@ -188,7 +188,7 @@ const VariantsForm = ({
           <div className="border border-gray-600 rounded p-3">
             <div className="flex items-center gap-2 mb-3">
               <input type="checkbox" checked={useType} onChange={(e) => setUseType(e.target.checked)} />
-              <input type="text" placeholder="Nombre (ej: Material)" value={typeName} onChange={(e) => setTypeName(e.target.value)} className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
+              <input type="text" placeholder="Tipo (ej: Material)" value={typeName} onChange={(e) => setTypeName(e.target.value)} className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm" />
             </div>
             {useType && (
               <div>
