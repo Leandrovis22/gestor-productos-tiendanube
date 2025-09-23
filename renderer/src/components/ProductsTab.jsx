@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Package, 
   Plus, 
@@ -25,6 +25,10 @@ const ProductsTab = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [config, setConfig] = useState(null);
 
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 54;
+
   // Estados del formulario de edición
   const [editForm, setEditForm] = useState({
     name: '',
@@ -38,6 +42,26 @@ const ProductsTab = () => {
   const [productImages, setProductImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [imageDataCache, setImageDataCache] = useState(new Map());
+
+  // Función para actualizar formulario con useCallback para evitar re-renders
+  const updateEditForm = useCallback((field, value) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  }, []);
+
+  // Función para actualizar variante con useCallback
+  const updateVariant = useCallback((index, field, value) => {
+    setEditForm(prev => {
+      const updatedVariants = [...prev.variants];
+      updatedVariants[index][field] = value;
+      return {
+        ...prev,
+        variants: updatedVariants
+      };
+    });
+  }, []);
 
   // Función para seleccionar directorio de trabajo
   const selectWorkingDirectory = async () => {
@@ -156,17 +180,22 @@ const ProductsTab = () => {
         const productsArray = Array.from(productMap.values());
         setProducts(productsArray);
         
-        // Cargar imágenes de todos los productos en el cache
-        const allImages = [];
-        productsArray.forEach(product => {
+        // Cargar datos de imagen solo para productos visibles en la página actual
+        const startIndex = (currentPage - 1) * productsPerPage;
+        const endIndex = startIndex + productsPerPage;
+        const visibleProducts = productsArray.slice(startIndex, endIndex);
+        
+        const visibleImages = [];
+        visibleProducts.forEach(product => {
           if (product.images && product.images.length > 0) {
-            allImages.push(...product.images);
+            // Solo cargar la primera imagen de cada producto para optimizar
+            visibleImages.push(product.images[0]);
           }
         });
         
-        // Cargar datos de imagen para todas las imágenes
-        if (allImages.length > 0) {
-          await loadImageDataForFiles([...new Set(allImages)], directory);
+        // Cargar datos de imagen solo para las imágenes visibles
+        if (visibleImages.length > 0) {
+          await loadImageDataForFiles([...new Set(visibleImages)], directory);
         }
       }
     } catch (error) {
@@ -445,6 +474,33 @@ const ProductsTab = () => {
     product.categories.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Calcular paginación
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const startIndex = (currentPage - 1) * productsPerPage;
+  const endIndex = startIndex + productsPerPage;
+  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Resetear página cuando cambia el término de búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Cargar imágenes cuando cambia la página
+  useEffect(() => {
+    if (workingDirectory && currentProducts.length > 0) {
+      const visibleImages = [];
+      currentProducts.forEach(product => {
+        if (product.images && product.images.length > 0) {
+          visibleImages.push(product.images[0]);
+        }
+      });
+      
+      if (visibleImages.length > 0) {
+        loadImageDataForFiles([...new Set(visibleImages)], workingDirectory);
+      }
+    }
+  }, [currentPage, currentProducts.length]);
+
   // Cargar productos eliminados cuando se cambia a esa vista
   useEffect(() => {
     if (view === 'deleted') {
@@ -493,7 +549,7 @@ const ProductsTab = () => {
             />
           </div>
           <span className="text-gray-400 text-sm">
-            {filteredProducts.length} productos
+            {filteredProducts.length} productos total - Página {currentPage} de {totalPages}
           </span>
         </div>
         
@@ -516,21 +572,21 @@ const ProductsTab = () => {
       </div>
 
       {/* Lista de productos */}
-      <div className="h-[calc(100vh-147px)] overflow-y-auto pr-2">
+      <div className="h-[calc(100vh-200px)] overflow-y-auto pr-2">
         <div className="grid grid-cols-6 gap-4">
           {loading ? (
             <div className="col-span-full text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-2 text-gray-400">Cargando productos...</p>
             </div>
-          ) : filteredProducts.length === 0 ? (
+          ) : currentProducts.length === 0 ? (
             <div className="col-span-full text-center py-8 text-gray-400">
               <Package size={48} className="mx-auto mb-4 opacity-50" />
               <p>No hay productos disponibles</p>
               <p className="text-sm">Selecciona una carpeta de trabajo para comenzar</p>
             </div>
           ) : (
-            filteredProducts.map(product => (
+            currentProducts.map(product => (
               <div 
                 key={product.id} 
                 className="relative border-4 border-gray-600 hover:border-blue-500 rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:scale-105"
@@ -573,6 +629,56 @@ const ProductsTab = () => {
           )}
         </div>
       </div>
+
+      {/* Controles de paginación */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-4">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded"
+          >
+            Anterior
+          </button>
+          
+          <div className="flex items-center gap-2">
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              let pageNumber;
+              if (totalPages <= 5) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNumber = totalPages - 4 + i;
+              } else {
+                pageNumber = currentPage - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNumber}
+                  onClick={() => setCurrentPage(pageNumber)}
+                  className={`w-10 h-10 rounded ${
+                    currentPage === pageNumber
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              );
+            })}
+          </div>
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded"
+          >
+            Siguiente
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -671,7 +777,7 @@ const ProductsTab = () => {
                   <input
                     type="text"
                     value={editForm.name}
-                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    onChange={(e) => updateEditForm('name', e.target.value)}
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -680,7 +786,7 @@ const ProductsTab = () => {
                   <input
                     type="text"
                     value={editForm.categories}
-                    onChange={(e) => setEditForm({...editForm, categories: e.target.value})}
+                    onChange={(e) => updateEditForm('categories', e.target.value)}
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -690,7 +796,7 @@ const ProductsTab = () => {
                     <input
                       type="text"
                       value={editForm.price}
-                      onChange={(e) => setEditForm({...editForm, price: e.target.value})}
+                      onChange={(e) => updateEditForm('price', e.target.value)}
                       className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -699,7 +805,7 @@ const ProductsTab = () => {
                     <input
                       type="text"
                       value={editForm.stock}
-                      onChange={(e) => setEditForm({...editForm, stock: e.target.value})}
+                      onChange={(e) => updateEditForm('stock', e.target.value)}
                       className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -723,22 +829,14 @@ const ProductsTab = () => {
                         <input
                           type="text"
                           value={variant.price}
-                          onChange={(e) => {
-                            const updatedVariants = [...editForm.variants];
-                            updatedVariants[index].price = e.target.value;
-                            setEditForm({...editForm, variants: updatedVariants});
-                          }}
+                          onChange={(e) => updateVariant(index, 'price', e.target.value)}
                           className="w-20 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
                           placeholder="Precio"
                         />
                         <input
                           type="text"
                           value={variant.stock}
-                          onChange={(e) => {
-                            const updatedVariants = [...editForm.variants];
-                            updatedVariants[index].stock = e.target.value;
-                            setEditForm({...editForm, variants: updatedVariants});
-                          }}
+                          onChange={(e) => updateVariant(index, 'stock', e.target.value)}
                           className="w-20 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
                           placeholder="Stock"
                         />
