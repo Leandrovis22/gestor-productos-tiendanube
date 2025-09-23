@@ -627,7 +627,7 @@ const ProductsTab = () => {
 
   // Vista de edición de producto
   const EditView = () => (
-    <div className="h-[calc(100vh-120px)] overflow-y-auto pr-2">
+    <div className="h-[calc(100vh-90px)] overflow-y-auto pr-2">
       <div className="space-y-6">
         <div className="flex justify-between items-center sticky top-0 bg-gray-900 z-10 py-2">
           <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -757,7 +757,7 @@ const ProductsTab = () => {
               {productImages.length === 0 ? (
                 <p className="text-gray-400 text-center py-4">No hay imágenes disponibles</p>
               ) : (
-                <div className="max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+                <div className="max-h-[calc(100vh-1px)] overflow-y-auto pr-2">
                   <div className="grid grid-cols-2 gap-3">
                     {productImages.map(image => {
                       const imageData = imageDataCache.get(image);
