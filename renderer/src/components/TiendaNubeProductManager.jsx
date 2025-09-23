@@ -146,16 +146,30 @@ const TiendaNubeProductManager = () => {
     setIsProcessing(true);
 
     try {
-      // Guardar nuevo tipo de variante si es necesario
+      // Guardar tipo de variante si es nuevo o si se han agregado nuevos valores
       if (productForm.useType && productForm.typeName && productForm.typeValues) {
-        const isNew = !productForm.predefinedTypes.some(pt => pt.name.toLowerCase() === productForm.typeName.toLowerCase());
-        if (isNew) {
-          const newType = {
+        const currentValues = productForm.typeValues.split('\n').map(v => v.trim()).filter(Boolean);
+        const existingType = productForm.predefinedTypes.find(pt => pt.name.toLowerCase() === productForm.typeName.toLowerCase());
+        
+        let shouldSave = false;
+        
+        if (!existingType) {
+          // Es un tipo completamente nuevo
+          shouldSave = true;
+        } else {
+          // Verificar si hay nuevos valores en el tipo existente
+          const existingValues = existingType.values || [];
+          const hasNewValues = currentValues.some(value => !existingValues.includes(value));
+          shouldSave = hasNewValues;
+        }
+        
+        if (shouldSave) {
+          const typeToSave = {
             name: productForm.typeName,
-            values: productForm.typeValues.split('\n').map(v => v.trim()).filter(Boolean)
+            values: currentValues
           };
           if (window.electronAPI) {
-            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, newType);
+            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, typeToSave);
             if (result.success) productForm.loadConfig(result.config);
           }
         }
@@ -193,16 +207,30 @@ const TiendaNubeProductManager = () => {
     setIsProcessing(true);
 
     try {
-      // Guardar nuevo tipo de variante si es necesario
+      // Guardar tipo de variante si es nuevo o si se han agregado nuevos valores
       if (productForm.useType && productForm.typeName && productForm.typeValues) {
-        const isNew = !productForm.predefinedTypes.some(pt => pt.name.toLowerCase() === productForm.typeName.toLowerCase());
-        if (isNew) {
-          const newType = {
+        const currentValues = productForm.typeValues.split('\n').map(v => v.trim()).filter(Boolean);
+        const existingType = productForm.predefinedTypes.find(pt => pt.name.toLowerCase() === productForm.typeName.toLowerCase());
+        
+        let shouldSave = false;
+        
+        if (!existingType) {
+          // Es un tipo completamente nuevo
+          shouldSave = true;
+        } else {
+          // Verificar si hay nuevos valores en el tipo existente
+          const existingValues = existingType.values || [];
+          const hasNewValues = currentValues.some(value => !existingValues.includes(value));
+          shouldSave = hasNewValues;
+        }
+        
+        if (shouldSave) {
+          const typeToSave = {
             name: productForm.typeName,
-            values: productForm.typeValues.split('\n').map(v => v.trim()).filter(Boolean)
+            values: currentValues
           };
           if (window.electronAPI) {
-            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, newType);
+            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, typeToSave);
             if (result.success) productForm.loadConfig(result.config);
           }
         }

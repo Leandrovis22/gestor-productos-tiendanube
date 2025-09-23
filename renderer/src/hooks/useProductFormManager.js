@@ -64,25 +64,22 @@ export const useProductFormManager = () => {
         setPredefinedColors(config.variants.colors || []);
         setPredefinedSizes(config.variants.sizes || []);
         
-        // Unifica 'types' (antiguo) y 'predefinedTypes' (nuevo) para máxima compatibilidad.
-        const oldTypes = config.variants.types || [];
-        const newTypes = config.variants.predefinedTypes || [];
+        // Solo usar predefinedTypes (formato nuevo con arrays)
+        const predefinedTypes = config.variants.predefinedTypes || [];
         
-        // Combina ambas listas, evitando duplicados por nombre.
-        const combined = [...oldTypes, ...newTypes];
-        const uniqueTypes = Array.from(new Map(
-          combined
-            .filter(item => item && item.name) // <-- AÑADIDO: Filtra objetos inválidos o sin nombre.
-            .map(item => [item.name.toLowerCase(), item])).values());
-
-        const rawTypes = uniqueTypes;
-        const normalizedTypes = rawTypes.map(type => {
+        // Filtrar objetos inválidos o sin nombre
+        const validTypes = predefinedTypes.filter(item => item && item.name);
+        
+        // Normalizar tipos: asegurar que values sea siempre un array
+        const normalizedTypes = validTypes.map(type => {
           if (typeof type.values === 'string') {
-            // Si 'values' es un string, lo convertimos en un array.
+            // Si por alguna razón todavía hay un string, convertirlo a array
             return { ...type, values: type.values.split('\n').map(v => v.trim()).filter(Boolean) };
           }
-          return type; // Si ya es un array, lo dejamos como está.
+          // Si ya es un array o no existe, asegurar que sea un array
+          return { ...type, values: Array.isArray(type.values) ? type.values : [] };
         });
+        
         setPredefinedTypes(normalizedTypes);
         if (config.variants.defaultType) {
           const { name, values } = config.variants.defaultType;

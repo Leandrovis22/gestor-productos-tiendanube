@@ -124,7 +124,45 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
   const configPath = path.join(directoryPath, 'config.json');
   try {
     const configContent = await fs.readFile(configPath, 'utf-8');
-    return JSON.parse(configContent);
+    let config = JSON.parse(configContent);
+    
+    // MIGRACIÓN AUTOMÁTICA: Convertir formato antiguo a nuevo si es necesario
+    if (config.variants && config.variants.types && Array.isArray(config.variants.types)) {
+      if (!config.variants.predefinedTypes) config.variants.predefinedTypes = [];
+      
+      // Migrar cada tipo del formato antiguo al nuevo
+      config.variants.types.forEach(oldType => {
+        if (oldType && oldType.name && typeof oldType.name === 'string') {
+          // Verificar si ya existe en predefinedTypes
+          const existsInNew = config.variants.predefinedTypes.some(pt => 
+            pt && pt.name && pt.name.toLowerCase() === oldType.name.toLowerCase()
+          );
+          
+          if (!existsInNew) {
+            // Convertir valores de string a array
+            let values = [];
+            if (typeof oldType.values === 'string') {
+              values = oldType.values.split('\n').map(v => v.trim()).filter(Boolean);
+            }
+            
+            // Agregar al formato nuevo
+            config.variants.predefinedTypes.push({
+              name: oldType.name,
+              values: values
+            });
+          }
+        }
+      });
+      
+      // Eliminar la sección types después de la migración
+      delete config.variants.types;
+      
+      // Guardar la configuración migrada
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      console.log('Configuration migrated from old format to new format');
+    }
+    
+    return config;
   } catch (error) {
     if (error.code === 'ENOENT') {
       console.warn(`Config file not found at ${configPath}. Creating a new one with default values.`);
@@ -152,35 +190,28 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
         ],
         "variants": {
           "colors": [
-            "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste", "Fucsia", "Gris",
+            "Amarillo", "Azul", "Beige", "Blanco", "Bordó", "Celeste", "Gris",
             "Marrón", "Naranja", "Negro", "Plata", "Rojo", "Rosa", "Verde", "Violeta",
-            "Transparente", "Multicolor"
+            "Transparente", "Multicolor", "Lila", "Dorado"
           ],
-          "sizes": ["XS", "S", "M", "L", "XL", "XXL"],
-          "types": [
-            {
-              "name": "Alianzas",
-              "values": "Acero dorado\nAcero blanco"
-            },
-            {
-              "name": "Conjuntos de plata",
-              "values": "Colibri\nDije transparente\nDije perla\nDije naranja\nNudo de bruja negro\nMedalla\nDije rosado\nDije rojo\nNudo de bruja\nVirgen niña"
-            },
-            {
-              "name": "Aros pasantes",
-              "values": "Mariposa Perlas Rosa\nMariposa Perlas Roja\nMariposa Amarillo Rojo y Azul\nMariposa Cristal Celeste\nMariposa Violeta\nMariposa Naranja\nFlor\nMejillón perla\nEstrella mejillón perla\nCorazón"
-            },
-            {
-              "name": "Aros argolla plata",
-              "values": "Canasta Picos\nCorazón\nCanasta Lisa\nHoja hueca\nHoja\nTrenza\nCalado\nCanasta\nCorazón Latido\nLineas\nTurbillon\nBola arenada\nColgante redondo\nColgante cuadrado\nGota\nSusanito grande\nSusanito chico\nEstrella\nInflado"
-            },
+          "sizes": ["XS", "S", "M", "L", "XL","40 cm", "45 cm", "50 cm", "55 cm", "60 cm", "65 cm", "70 cm"],
+          "predefinedTypes": [
             {
               "name": "Material",
-              "values": "Acero blanco\nAcero dorado"
+              "values": ["Acero blanco", "Acero dorado"]
+            },
+            {
+              "name": "Medida Anillos",
+              "values": ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28"]
+            },
+            {
+              "name": "Cierre",
+              "values": ["Mosquetón", "Reasa", "Broquel", "Magnético", "Tornillo", "Presión", "Gancho", "Cadena Extensora", "Sin Cierre"]
+            },
+            {
+              "name": "Diseño",
+              "values": ["Liso", "Labrado", "Colibri", "Flor", "Corazón", "Estrella", "Geométrico", "Trenzado", "Texturado", "Calado", "Dije transparente", "Dije perla", "Dije naranja", "Medalla", "Dije rosado", "Dije rojo", "Nudo de bruja", "Virgen niña", "Mariposa Perlas Rosa", "Mariposa Perlas Roja", "Mariposa Amarillo Rojo y Azul", "Mariposa Cristal Celeste", "Mariposa Violeta", "Mariposa Naranja", "Mejillón perla", "Estrella mejillón perla", "Canasta Picos", "Canasta Lisa", "Hoja hueca", "Hoja", "Trenza", "Corazón Latido", "Lineas", "Turbillon", "Bola arenada", "Colgante redondo", "Colgante cuadrado", "Gota", "Susanito grande", "Susanito chico", "Inflado"]
             }
-          ],
-          "predefinedTypes": [
-            {}
           ]
         }
       };
@@ -212,11 +243,82 @@ ipcMain.handle('savePredefinedType', async (event, directoryPath, newType) => {
     if (!config.variants) config.variants = {};
     if (!config.variants.predefinedTypes) config.variants.predefinedTypes = [];
 
-    // Evitar duplicados y manejar casos donde pt.name es undefined
-    if (!config.variants.predefinedTypes.some(pt => (pt && typeof pt.name === 'string' && typeof newType.name === 'string') ? pt.name.toLowerCase() === newType.name.toLowerCase() : false)) {
-      config.variants.predefinedTypes.push(newType);
-      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    // MIGRACIÓN: Convertir tipos del formato antiguo al nuevo si existen
+    if (config.variants.types && Array.isArray(config.variants.types)) {
+      config.variants.types.forEach(oldType => {
+        if (oldType && oldType.name && typeof oldType.name === 'string') {
+          // Verificar si ya existe en predefinedTypes
+          const existsInNew = config.variants.predefinedTypes.some(pt => 
+            pt && pt.name && pt.name.toLowerCase() === oldType.name.toLowerCase()
+          );
+          
+          if (!existsInNew) {
+            // Convertir valores de string a array
+            let values = [];
+            if (typeof oldType.values === 'string') {
+              values = oldType.values.split('\n').map(v => v.trim()).filter(Boolean);
+            }
+            
+            // Agregar al formato nuevo
+            config.variants.predefinedTypes.push({
+              name: oldType.name,
+              values: values
+            });
+          }
+        }
+      });
+      
+      // Eliminar la sección types después de la migración
+      delete config.variants.types;
     }
+
+    // Función auxiliar para buscar tipos por nombre (case insensitive)
+    const findTypeByName = (typesArray, targetName) => {
+      return typesArray.findIndex(pt => 
+        (pt && typeof pt.name === 'string' && typeof targetName === 'string') ? 
+          pt.name.toLowerCase() === targetName.toLowerCase() : false
+      );
+    };
+
+    // Buscar si ya existe el tipo en predefinedTypes
+    const existingTypeIndex = findTypeByName(config.variants.predefinedTypes, newType.name);
+
+    if (existingTypeIndex !== -1) {
+      // Actualizar tipo existente
+      const existingType = config.variants.predefinedTypes[existingTypeIndex];
+      const existingValues = existingType.values || [];
+      const newValues = newType.values || [];
+      
+      // Combinar valores únicos manteniendo el orden (los nuevos al final)
+      const combinedValues = [...existingValues];
+      newValues.forEach(newValue => {
+        if (!combinedValues.includes(newValue)) {
+          combinedValues.push(newValue);
+        }
+      });
+      
+      // Actualizar el tipo existente
+      config.variants.predefinedTypes[existingTypeIndex] = {
+        ...existingType,
+        values: combinedValues
+      };
+    } else {
+      // Agregar nuevo tipo
+      config.variants.predefinedTypes.push({
+        name: newType.name,
+        values: newType.values || []
+      });
+    }
+
+    // Limpiar objetos vacíos o inválidos
+    config.variants.predefinedTypes = config.variants.predefinedTypes.filter(type => 
+      type && 
+      type.name && 
+      typeof type.name === 'string' && 
+      type.name.trim() !== ''
+    );
+    
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
     return { success: true, config };
   } catch (error) {
     console.error('Error saving predefined type:', error);
