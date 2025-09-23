@@ -64,6 +64,94 @@ const ProductThumbnailImage = ({ path, alt, className }) => {
   return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
 };
 
+// Componente de miniaturas optimizado con memo
+const ProductThumbnails = React.memo(({ 
+  currentProductAllImages, 
+  currentDisplayedImage, 
+  currentMainProductImage, 
+  workingDirectory, 
+  onImageSelect 
+}) => {
+  console.log('🖼️ ProductThumbnails renderizado con:', currentProductAllImages.length, 'imágenes');
+  
+  const containerRef = useRef(null);
+
+  // Configurar el evento wheel con passive: false
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheelScroll = (e) => {
+      e.preventDefault();
+      container.scrollLeft += e.deltaY;
+    };
+
+    container.addEventListener('wheel', handleWheelScroll, { passive: false });
+
+    return () => {
+      if (container) {
+        container.removeEventListener('wheel', handleWheelScroll);
+      }
+    };
+  }, []);
+  
+  if (currentProductAllImages.length <= 1) {
+    return null; // No mostrar si solo hay una imagen o ninguna
+  }
+
+  return (
+    <div className="p-2 border-t border-gray-700">
+      <h4 className="text-xs text-gray-400 mb-2">
+        Imágenes del producto ({currentProductAllImages.length}):
+      </h4>
+      <div 
+        ref={containerRef}
+        className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
+      >
+        {currentProductAllImages.map((imgName) => {
+          const isCurrentlyDisplayed = currentDisplayedImage === imgName;
+          const isMainProduct = imgName === currentMainProductImage;
+
+          return (
+            <div
+              key={imgName}
+              className={`relative cursor-pointer border-2 rounded transition-all flex-shrink-0 ${
+                isCurrentlyDisplayed
+                  ? 'border-blue-500 shadow-lg bg-blue-900/20'
+                  : 'border-transparent hover:border-gray-500'
+              }`}
+              onClick={() => onImageSelect(imgName)}
+              title={`${imgName} ${isCurrentlyDisplayed ? '(mostrando)' : ''}`}
+            >
+              <ProductThumbnailImage
+                path={window.electronAPI.joinPaths(workingDirectory, imgName)}
+                alt={imgName}
+                className="w-16 h-16 object-cover rounded-sm"
+              />
+              {isCurrentlyDisplayed && (
+                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                </div>
+              )}
+              {isMainProduct && (
+                <div className="absolute -top-1 -right-1">
+                  <div className="w-4 h-4 bg-green-500 rounded-full text-xs text-white flex items-center justify-center font-bold">
+                    P
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        Producto principal: {currentMainProductImage}
+        {currentProductAllImages.length > 1 && ' + ' + (currentProductAllImages.length - 1) + ' secundarias'}
+      </p>
+    </div>
+  );
+});
+
 // Hook personalizado para gestión de imágenes
 export const useImageManager = () => {
   const [currentImage, setCurrentImage] = useState(null);
@@ -272,9 +360,6 @@ export const ImageManager = ({
   onImageSelect,
   imageManager // Recibe el hook completo
 }) => {
-  // Ahora el hook se usa aquí directamente
-  // const imageManager = useImageManager(); // Descomentar si se elimina la prop
-
   // Efectos para sincronizar con zoom y redimensionado
   useEffect(() => {
     if (imageManager.currentImage) {
@@ -316,64 +401,6 @@ export const ImageManager = ({
     };
   }, [imageManager.canvasRef, imageManager.handleZoom]);
 
-  // Componente de miniaturas (movido aquí)
-  const ProductThumbnails = () => {
-    console.log('🖼️ ProductThumbnails renderizado con:', currentProductAllImages.length, 'imágenes');
-    
-    if (currentProductAllImages.length <= 1) {
-      return null; // No mostrar si solo hay una imagen o ninguna
-    }
-
-    return (
-      <div className="p-2 border-t border-gray-700">
-        <h4 className="text-xs text-gray-400 mb-2">
-          Imágenes del producto ({currentProductAllImages.length}):
-        </h4>
-        <div className="flex gap-2 overflow-x-auto">
-          {currentProductAllImages.map((imgName) => {
-            const isCurrentlyDisplayed = currentDisplayedImage === imgName;
-            const isMainProduct = imgName === currentMainProductImage;
-
-            return (
-              <div
-                key={imgName}
-                className={`relative cursor-pointer border-2 rounded transition-all flex-shrink-0 ${
-                  isCurrentlyDisplayed
-                    ? 'border-blue-500 shadow-lg bg-blue-900/20'
-                    : 'border-transparent hover:border-gray-500'
-                }`}
-                onClick={() => onImageSelect(imgName)}
-                title={`${imgName} ${isCurrentlyDisplayed ? '(mostrando)' : ''}`}
-              >
-                <ProductThumbnailImage
-                  path={window.electronAPI.joinPaths(workingDirectory, imgName)}
-                  alt={imgName}
-                  className="w-16 h-16 object-cover rounded-sm"
-                />
-                {isCurrentlyDisplayed && (
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  </div>
-                )}
-                {isMainProduct && (
-                  <div className="absolute -top-1 -right-1">
-                    <div className="w-4 h-4 bg-green-500 rounded-full text-xs text-white flex items-center justify-center font-bold">
-                      P
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Producto principal: {currentMainProductImage}
-          {currentProductAllImages.length > 1 && ' + ' + (currentProductAllImages.length - 1) + ' secundarias'}
-        </p>
-      </div>
-    );
-  };
-
   return (
     <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col" ref={imageManager.imageRef}>
       <div className="flex-1 p-4 relative">
@@ -403,7 +430,13 @@ export const ImageManager = ({
         </div>
       </InpaintingTool>
 
-      <ProductThumbnails />
+      <ProductThumbnails 
+        currentProductAllImages={currentProductAllImages}
+        currentDisplayedImage={currentDisplayedImage}
+        currentMainProductImage={currentMainProductImage}
+        workingDirectory={workingDirectory}
+        onImageSelect={onImageSelect}
+      />
     </div>
   );
 };
