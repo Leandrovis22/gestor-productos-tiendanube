@@ -73,8 +73,6 @@ const ProductThumbnails = React.memo(({
   workingDirectory, 
   onImageSelect 
 }) => {
-  console.log('🖼️ ProductThumbnails renderizado con:', currentProductAllImages.length, 'imágenes');
-  
   const containerRef = useRef(null);
 
   // Configurar el evento wheel con passive: false
@@ -472,7 +470,6 @@ export const ImageManager = ({
 
   // Efecto para forzar re-render de miniaturas cuando cambian las imágenes del producto
   useEffect(() => {
-    console.log('🖼️ ImageManager: currentProductAllImages actualizado:', currentProductAllImages);
   }, [currentProductAllImages]);
 
   useEffect(() => {

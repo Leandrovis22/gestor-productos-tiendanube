@@ -203,7 +203,6 @@ export const useProductManager = () => {
 
     if (productImagesMap[mainImageFilename]) {
       allImagesForProduct.push(...productImagesMap[mainImageFilename]);
-      console.log('✅ Encontradas imágenes secundarias para', mainImageFilename, ':', productImagesMap[mainImageFilename]);
     }
 
     let actualMainImage = mainImageFilename;
@@ -212,7 +211,6 @@ export const useProductManager = () => {
         actualMainImage = main;
         allImagesForProduct.splice(0, 1, main);
         allImagesForProduct.push(...secondaries.filter(img => img !== mainImageFilename));
-        console.log('🔄 Imagen es secundaria, usando principal:', actualMainImage);
         break;
       }
     }
@@ -222,7 +220,6 @@ export const useProductManager = () => {
     // Solo actualizar si realmente cambió algo
     setCurrentMainProductImage(prev => {
       if (prev !== actualMainImage) {
-        console.log('� Producto cargado:', actualMainImage, `(${uniqueImages.length} imágenes)`);
         return actualMainImage;
       }
       return prev;
@@ -232,7 +229,6 @@ export const useProductManager = () => {
       const prevStr = JSON.stringify(prev);
       const newStr = JSON.stringify(uniqueImages);
       if (prevStr !== newStr) {
-        console.log('🖼️ updateThumbnails: Actualizando currentProductAllImages de', prev.length, 'a', uniqueImages.length, 'imágenes');
         return uniqueImages;
       }
       return prev;
@@ -297,7 +293,7 @@ export const useProductManager = () => {
           if (exists) {
             const result = await window.electronAPI.moveFile(sourcePath, destPath);
             if (result.success) {
-              console.log(`Imagen ${filename} movida a procesadas.`);
+              // Archivo movido exitosamente
             } else {
               console.error(`Error moviendo archivo ${filename}:`, result.error);
             }

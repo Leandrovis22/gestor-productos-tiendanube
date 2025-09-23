@@ -25,5 +25,3 @@ function walkDir(dir, fileList = []) {
 const fileList = walkDir(process.cwd());
 fs.writeFileSync('fileList.txt', fileList.join('\n'), 'utf-8');
 
-console.log('Archivo fileList.txt generado con éxito.');
-

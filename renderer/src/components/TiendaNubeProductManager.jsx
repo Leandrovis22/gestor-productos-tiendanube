@@ -228,8 +228,6 @@ const TiendaNubeProductManager = () => {
 
   // Manejo de guardado cuando se guardan combinaciones
   const handleCombinationSaved = async () => {
-    console.log('🔄 Iniciando recarga después de combinar productos...');
-    
     // 1. Recargar el mapa de imágenes de productos
     await productManager.loadProductImagesMap();
     
@@ -241,11 +239,8 @@ const TiendaNubeProductManager = () => {
     
     // 4. NUEVA LÍNEA: Forzar actualización de thumbnails para el producto actual
     if (productManager.currentMainProductImage) {
-      console.log('🖼️ Actualizando thumbnails para:', productManager.currentMainProductImage);
       productManager.updateThumbnails(productManager.currentMainProductImage);
     }
-    
-    console.log('✅ Recarga completada después de combinar productos');
   };
 
   // Efectos para sincronizar datos

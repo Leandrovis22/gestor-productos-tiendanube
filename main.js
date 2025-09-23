@@ -387,7 +387,6 @@ ipcMain.handle('update-product-in-resultado', async (event, resultadoPath, prima
     if (updated) {
       // Write back to file
       await fs.writeFile(resultadoPath, updatedLines.join('\n') + '\n', 'utf8');
-      console.log(`Updated product ${primaryImageName} in resultado.csv with new properties`);
     }
 
     return { success: true };
@@ -402,7 +401,6 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
     // Check if file exists
     const exists = await fs.access(resultadoPath).then(() => true).catch(() => false);
     if (!exists) {
-      console.log('resultado.csv does not exist yet, skipping removal');
       return { success: true };
     }
 
@@ -424,7 +422,6 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
     if (removedCount > 0) {
       // Write back to file
       await fs.writeFile(resultadoPath, filteredLines.join('\n') + '\n', 'utf8');
-      console.log(`Removed ${removedCount} products from resultado.csv`);
     }
 
     return { success: true, removedCount };
@@ -767,7 +764,6 @@ if __name__ == "__main__":
   try {
     await fs.writeFile(scriptPath, pythonScript, 'utf-8');
     cachedScriptPath = scriptPath;
-    console.log(`✅ Script Python creado en: ${scriptPath}`);
     return scriptPath;
   } catch (error) {
     console.error('❌ Error creando script Python:', error);
@@ -788,8 +784,6 @@ async function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, 
       
       const args = ['-3', actualScriptPath, normalizedImagePath, normalizedMaskPath, normalizedOutputPath, radius.toString()];
       
-      console.log(`🐍 Ejecutando inpainting...`);
-      
       const pythonProcess = spawn('py', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
@@ -808,7 +802,6 @@ async function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, 
       });
       
       pythonProcess.on('close', (code) => {
-        console.log(`🔚 Proceso terminó con código: ${code}`);
         if (stderr) console.log(`❌ STDERR: ${stderr}`);
         
         if (code === 0) {
@@ -845,8 +838,6 @@ async function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, 
 // 2. REEMPLAZA la función checkPythonAndPackages existente (línea ~410 aprox) con esta:
 function checkPythonAndPackages() {
   return new Promise((resolve) => {
-    console.log('🔍 Verificando Python 3.13 y dependencias...');
-    
     const pythonProcess = spawn('py', ['-3', '-c', 'import cv2, numpy; print("OK")'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true
