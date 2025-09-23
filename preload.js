@@ -33,4 +33,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readConfig: (directoryPath) => ipcRenderer.invoke('read-config', directoryPath),
   savePredefinedType: (directoryPath, newType) => ipcRenderer.invoke('savePredefinedType', directoryPath, newType),
 
+  // New functions for Products tab
+  readProductsFromCsv: (directoryPath) => ipcRenderer.invoke('read-products-from-csv', directoryPath),
+  updateProductInCsv: (directoryPath, productId, updatedData) => ipcRenderer.invoke('update-product-in-csv', directoryPath, productId, updatedData),
+  deleteProduct: (directoryPath, productId) => ipcRenderer.invoke('delete-product', directoryPath, productId),
+  readDeletedProducts: (directoryPath) => ipcRenderer.invoke('read-deleted-products', directoryPath),
+  restoreProduct: (directoryPath, productId) => ipcRenderer.invoke('restore-product', directoryPath, productId),
+  deleteImagePermanently: (imagePath) => ipcRenderer.invoke('delete-image-permanently', imagePath),
+  updateImageUrlCsv: (directoryPath, productId, imageName, action) => ipcRenderer.invoke('update-image-url-csv', directoryPath, productId, imageName, action),
 });

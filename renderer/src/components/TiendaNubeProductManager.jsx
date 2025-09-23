@@ -1,6 +1,6 @@
 // components/TiendaNubeProductManager.js
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, SkipForward, FileText, FolderOpen } from 'lucide-react';
+import { ChevronRight, SkipForward, FileText, FolderOpen, Package } from 'lucide-react';
 
 // Hooks personalizados
 import { useProductManager } from '../hooks/useProductManager';
@@ -10,6 +10,7 @@ import { useProductFormManager } from '../hooks/useProductFormManager';
 import { ImageManager, useImageManager } from './ImageManager';
 import { ProductEditor } from './ProductEditor';
 import CombineProducts from '../CombineProducts';
+import ProductsTab from './ProductsTab';
 
 // Componentes movidos fuera para evitar re-renderizados innecesarios que quitan el foco de los inputs.
 
@@ -45,6 +46,33 @@ const FileSelector = ({ productManager }) => (
         'Sin archivo seleccionado'
       )}
     </span>
+  </div>
+);
+
+// Tabs principales de la aplicación
+const MainTabs = ({ activeMainTab, setActiveMainTab }) => (
+  <div className="flex border-b border-gray-700 bg-gray-800">
+    <button
+      onClick={() => setActiveMainTab('editor')}
+      className={`px-6 py-3 text-sm font-medium ${
+        activeMainTab === 'editor' 
+          ? 'bg-gray-900 border-b-2 border-blue-500 text-white' 
+          : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+      }`}
+    >
+      Editor de Productos
+    </button>
+    <button
+      onClick={() => setActiveMainTab('productos')}
+      className={`px-6 py-3 text-sm font-medium flex items-center gap-2 ${
+        activeMainTab === 'productos' 
+          ? 'bg-gray-900 border-b-2 border-blue-500 text-white' 
+          : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+      }`}
+    >
+      <Package size={16} />
+      Productos Completados
+    </button>
   </div>
 );
 
@@ -107,6 +135,7 @@ const ProcessedScreen = ({ onRestart }) => (
 );
 
 const TiendaNubeProductManager = () => {
+  const [activeMainTab, setActiveMainTab] = useState('editor');
   const [activeTab, setActiveTab] = useState('general');
 
   // Hooks personalizados
@@ -319,12 +348,22 @@ const TiendaNubeProductManager = () => {
   );
 
   // Renderizado principal
+  if (activeMainTab === 'productos') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
+        <MainTabs activeMainTab={activeMainTab} setActiveMainTab={setActiveMainTab} />
+        <ProductsTab />
+      </div>
+    );
+  }
+
   if (activeTab === 'combinar') {
     return (
       <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
+        <MainTabs activeMainTab={activeMainTab} setActiveMainTab={setActiveMainTab} />
         <button 
           onClick={() => setActiveTab('general')} 
-          className="absolute top-4 right-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded z-10"
+          className="absolute top-16 right-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded z-10"
         >
           Volver al Editor
         </button>
@@ -339,6 +378,7 @@ const TiendaNubeProductManager = () => {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
+      <MainTabs activeMainTab={activeMainTab} setActiveMainTab={setActiveMainTab} />
       <Header />
 
       {productManager.allProductsProcessed ? (

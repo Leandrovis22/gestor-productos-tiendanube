@@ -82,7 +82,19 @@ ipcMain.handle('select-directory', async () => {
 
 ipcMain.handle('read-csv', async (event, filePath) => {
   try {
-    const csvContent = await fs.readFile(filePath, 'utf-8');
+    // Determinar el encoding basado en el archivo
+    let encoding = 'utf-8';
+    
+    // Para salida.csv usar latin1 (ANSI)
+    if (filePath.includes('salida.csv')) {
+      encoding = 'latin1';
+    }
+    // Para imagen-url.csv usar utf-8
+    else if (filePath.includes('imagen-url.csv')) {
+      encoding = 'utf-8';
+    }
+    
+    const csvContent = await fs.readFile(filePath, encoding);
     
     return new Promise((resolve, reject) => {
       Papa.parse(csvContent, {
@@ -1043,6 +1055,674 @@ ipcMain.handle('load-image', async (event, imagePath) => {
     console.log(`⚠️ Imagen no encontrada: ${imagePath}`);
     // En lugar de lanzar error, devolver null para que el componente pueda manejarlo
     return null;
+  }
+});
+
+// ===== HANDLERS PARA GESTIÓN DE PRODUCTOS =====
+
+// Handler para leer y procesar productos desde salida.csv específico del proyecto
+ipcMain.handle('read-products-from-csv', async (event, directoryPath) => {
+  try {
+    const csvPath = path.join(directoryPath, 'salida.csv');
+    const exists = await fs.access(csvPath).then(() => true).catch(() => false);
+    
+    if (!exists) {
+      return { success: true, products: [] };
+    }
+
+    // Leer CSV con encoding latin1 (ANSI)
+    const csvContent = await fs.readFile(csvPath, 'latin1');
+    
+    return new Promise((resolve) => {
+      Papa.parse(csvContent, {
+        header: true,
+        delimiter: ';',
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            // Cargar mapeo de imágenes desde imagen-url.csv
+            const loadImageMapping = async () => {
+              const imagenUrlCsvPath = path.join(directoryPath, 'imagen-url.csv');
+              const imagenUrlExists = await fs.access(imagenUrlCsvPath).then(() => true).catch(() => false);
+              
+              let imageMapping = new Map();
+              if (imagenUrlExists) {
+                try {
+                  const imageUrlContent = await fs.readFile(imagenUrlCsvPath, 'utf-8');
+                  const imageUrlResults = Papa.parse(imageUrlContent, {
+                    header: true,
+                    delimiter: ';',
+                    skipEmptyLines: true
+                  });
+                  
+                  imageUrlResults.data.forEach(row => {
+                    const url = row.url || '';
+                    const imagenes = row.imagenes || '';
+                    if (url && imagenes) {
+                      const imageList = imagenes.split(',').map(img => img.trim()).filter(img => img);
+                      imageMapping.set(url, imageList);
+                    }
+                  });
+                } catch (error) {
+                  console.warn('Error reading imagen-url.csv:', error);
+                }
+              }
+              return imageMapping;
+            };
+
+            loadImageMapping().then(imageMapping => {
+              // Procesar datos CSV para extraer productos únicos
+              const productMap = new Map();
+              
+              results.data.forEach(row => {
+                const urlId = row['Identificador de URL'] || '';
+                const name = row['Nombre'] || '';
+                const categories = row['Categorías'] || '';
+                const price = row['Precio'] || '';
+                const stock = row['Stock'] || '';
+                
+                if (urlId && name) {
+                  if (!productMap.has(urlId)) {
+                    // Obtener imágenes del mapeo
+                    const productImages = imageMapping.get(urlId) || [];
+                    
+                    productMap.set(urlId, {
+                      id: urlId,
+                      name: name,
+                      categories: categories,
+                      price: price,
+                      stock: stock,
+                      variants: [],
+                      images: productImages,
+                      csvLineIndex: results.data.indexOf(row)
+                    });
+                  }
+                  
+                  // Agregar variante si tiene propiedades específicas
+                  const variant = {
+                    price: price,
+                    stock: stock,
+                    properties: [],
+                    csvLineIndex: results.data.indexOf(row)
+                  };
+                  
+                  // Extraer propiedades de variante (1-3)
+                  for (let i = 1; i <= 3; i++) {
+                    const propName = row[`Nombre de propiedad ${i}`] || '';
+                    const propValue = row[`Valor de propiedad ${i}`] || '';
+                    if (propName && propValue) {
+                      variant.properties.push({ name: propName, value: propValue });
+                    }
+                  }
+                  
+                  productMap.get(urlId).variants.push(variant);
+                }
+              });
+              
+              const products = Array.from(productMap.values());
+              resolve({ success: true, products });
+            });
+          } catch (error) {
+            console.error('Error processing CSV data:', error);
+            resolve({ success: false, error: error.message });
+          }
+        },
+        error: (error) => {
+          console.error('Error parsing CSV:', error);
+          resolve({ success: false, error: error.message });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error reading products from CSV:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para actualizar producto en salida.csv específico del proyecto
+ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, updatedData) => {
+  try {
+    const csvPath = path.join(directoryPath, 'salida.csv');
+    const backupPath = path.join(directoryPath, 'salida_backup.csv');
+    
+    // Crear backup
+    await fs.copyFile(csvPath, backupPath);
+    
+    // Leer CSV con encoding latin1 (ANSI)
+    const csvContent = await fs.readFile(csvPath, 'latin1');
+    
+    return new Promise((resolve) => {
+      Papa.parse(csvContent, {
+        header: true,
+        delimiter: ';',
+        skipEmptyLines: false,
+        complete: async (results) => {
+          try {
+            // Actualizar las filas que corresponden al producto
+            const processedData = results.data.map(row => {
+              const urlId = row['Identificador de URL'] || '';
+              
+              if (urlId === productId) {
+                // Actualizar solo las filas principales (que tienen nombre)
+                if (row['Nombre'] && row['Nombre'].trim()) {
+                  return {
+                    ...row,
+                    'Nombre': updatedData.name || row['Nombre'],
+                    'Categorías': updatedData.categories || row['Categorías'],
+                    'Precio': updatedData.price || row['Precio'],
+                    'Stock': updatedData.stock || row['Stock']
+                  };
+                } else {
+                  // Para filas de variantes, solo actualizar precio y stock
+                  return {
+                    ...row,
+                    'Precio': updatedData.price || row['Precio'],
+                    'Stock': updatedData.stock || row['Stock']
+                  };
+                }
+              }
+              return row;
+            });
+
+            // Convertir de vuelta a CSV
+            const newCsvContent = Papa.unparse(processedData, {
+              delimiter: ';',
+              header: true,
+              skipEmptyLines: false
+            });
+
+            // Guardar con encoding latin1 (ANSI)
+            await fs.writeFile(csvPath, newCsvContent, 'latin1');
+            resolve({ success: true });
+          } catch (error) {
+            console.error('Error updating CSV:', error);
+            resolve({ success: false, error: error.message });
+          }
+        },
+        error: (error) => {
+          console.error('Error parsing CSV for update:', error);
+          resolve({ success: false, error: error.message });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error updating product in CSV:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para eliminar producto específico del proyecto (mover a carpeta eliminados)
+ipcMain.handle('delete-product', async (event, directoryPath, productId) => {
+  try {
+    const csvPath = path.join(directoryPath, 'salida.csv');
+    const deletedDir = path.join(directoryPath, 'eliminados');
+    const deletedCsvPath = path.join(deletedDir, 'salida.csv');
+    const deletedImagesDir = path.join(deletedDir, 'procesadas');
+    
+    // Crear directorios eliminados si no existen
+    await fs.mkdir(deletedDir, { recursive: true });
+    await fs.mkdir(deletedImagesDir, { recursive: true });
+    
+    // Leer CSV original con encoding latin1 (ANSI)
+    const csvContent = await fs.readFile(csvPath, 'latin1');
+    
+    return new Promise(async (resolve) => {
+      Papa.parse(csvContent, {
+        header: true,
+        delimiter: ';',
+        skipEmptyLines: false,
+        complete: async (results) => {
+          try {
+            const allRows = results.data;
+            const remainingRows = [];
+            const deletedRows = [];
+            
+            // Separar filas del producto a eliminar
+            allRows.forEach(row => {
+              const urlId = row['Identificador de URL'] || '';
+              if (urlId === productId) {
+                deletedRows.push(row);
+              } else {
+                remainingRows.push(row);
+              }
+            });
+            
+            if (deletedRows.length === 0) {
+              resolve({ success: false, error: 'Product not found' });
+              return;
+            }
+            
+            // Guardar CSV actualizado (sin el producto eliminado)
+            const remainingCsvContent = Papa.unparse(remainingRows, {
+              delimiter: ';',
+              header: true,
+              skipEmptyLines: false
+            });
+            await fs.writeFile(csvPath, remainingCsvContent, 'latin1');
+            
+            // Crear o actualizar CSV de eliminados
+            let deletedCsvContent = '';
+            const deletedExists = await fs.access(deletedCsvPath).then(() => true).catch(() => false);
+            
+            if (deletedExists) {
+              const existingDeletedContent = await fs.readFile(deletedCsvPath, 'latin1');
+              const existingDeletedResults = Papa.parse(existingDeletedContent, {
+                header: true,
+                delimiter: ';',
+                skipEmptyLines: false
+              });
+              
+              const combinedDeletedRows = [...existingDeletedResults.data, ...deletedRows];
+              deletedCsvContent = Papa.unparse(combinedDeletedRows, {
+                delimiter: ';',
+                header: true,
+                skipEmptyLines: false
+              });
+            } else {
+              deletedCsvContent = Papa.unparse(deletedRows, {
+                delimiter: ';',
+                header: true,
+                skipEmptyLines: false
+              });
+            }
+            
+            await fs.writeFile(deletedCsvPath, deletedCsvContent, 'latin1');
+            
+            // Mover imágenes del producto a carpeta eliminados
+            let movedImages = 0;
+            try {
+              // Leer mapeo de imágenes desde imagen-url.csv
+              const imagenUrlCsvPath = path.join(directoryPath, 'imagen-url.csv');
+              const imagenUrlExists = await fs.access(imagenUrlCsvPath).then(() => true).catch(() => false);
+              
+              if (imagenUrlExists) {
+                const imageUrlContent = await fs.readFile(imagenUrlCsvPath, 'utf-8');
+                const imageUrlResults = Papa.parse(imageUrlContent, {
+                  header: true,
+                  delimiter: ';',
+                  skipEmptyLines: true
+                });
+                
+                const productImageMapping = imageUrlResults.data.find(row => row.url === productId);
+                if (productImageMapping && productImageMapping.imagenes) {
+                  const imageList = productImageMapping.imagenes.split(',').map(img => img.trim()).filter(img => img);
+                  
+                  const procesadasDir = path.join(directoryPath, 'procesadas');
+                  
+                  for (const imageName of imageList) {
+                    const sourcePath = path.join(procesadasDir, imageName);
+                    const destPath = path.join(deletedImagesDir, imageName);
+                    
+                    try {
+                      await fs.access(sourcePath);
+                      await fs.rename(sourcePath, destPath);
+                      movedImages++;
+                    } catch (error) {
+                      console.warn(`Could not move image ${imageName}:`, error.message);
+                    }
+                  }
+                  
+                  // Actualizar imagen-url.csv para remover el producto eliminado
+                  const updatedImageUrlData = imageUrlResults.data.filter(row => row.url !== productId);
+                  const updatedImageUrlContent = Papa.unparse(updatedImageUrlData, {
+                    delimiter: ';',
+                    header: true
+                  });
+                  await fs.writeFile(imagenUrlCsvPath, updatedImageUrlContent, 'utf-8');
+                  
+                  // Crear entrada en imagen-url.csv de eliminados si es necesario
+                  const deletedImageUrlCsvPath = path.join(deletedDir, 'imagen-url.csv');
+                  const deletedImageUrlExists = await fs.access(deletedImageUrlCsvPath).then(() => true).catch(() => false);
+                  
+                  if (deletedImageUrlExists) {
+                    const existingDeletedImageUrlContent = await fs.readFile(deletedImageUrlCsvPath, 'utf-8');
+                    const existingDeletedImageUrlResults = Papa.parse(existingDeletedImageUrlContent, {
+                      header: true,
+                      delimiter: ';',
+                      skipEmptyLines: true
+                    });
+                    
+                    const combinedImageUrlData = [...existingDeletedImageUrlResults.data, productImageMapping];
+                    const combinedImageUrlContent = Papa.unparse(combinedImageUrlData, {
+                      delimiter: ';',
+                      header: true
+                    });
+                    await fs.writeFile(deletedImageUrlCsvPath, combinedImageUrlContent, 'utf-8');
+                  } else {
+                    const newDeletedImageUrlContent = Papa.unparse([productImageMapping], {
+                      delimiter: ';',
+                      header: true
+                    });
+                    await fs.writeFile(deletedImageUrlCsvPath, newDeletedImageUrlContent, 'utf-8');
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn('Error moving images:', error);
+            }
+            
+            resolve({ 
+              success: true, 
+              deletedImages: movedImages,
+              deletedVariants: deletedRows.length
+            });
+          } catch (error) {
+            console.error('Error processing deletion:', error);
+            resolve({ success: false, error: error.message });
+          }
+        },
+        error: (error) => {
+          console.error('Error parsing CSV for deletion:', error);
+          resolve({ success: false, error: error.message });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para leer productos eliminados específico del proyecto
+ipcMain.handle('read-deleted-products', async (event, directoryPath) => {
+  try {
+    const deletedDir = path.join(directoryPath, 'eliminados');
+    const deletedCsvPath = path.join(deletedDir, 'salida.csv');
+    
+    const exists = await fs.access(deletedCsvPath).then(() => true).catch(() => false);
+    
+    if (!exists) {
+      return { success: true, products: [] };
+    }
+
+    // Leer CSV con encoding latin1 (ANSI)
+    const csvContent = await fs.readFile(deletedCsvPath, 'latin1');
+    
+    return new Promise((resolve) => {
+      Papa.parse(csvContent, {
+        header: true,
+        delimiter: ';',
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            // Procesar productos eliminados
+            const productMap = new Map();
+            
+            results.data.forEach(row => {
+              const urlId = row['Identificador de URL'] || '';
+              const name = row['Nombre'] || '';
+              const categories = row['Categorías'] || '';
+              
+              if (urlId && name && !productMap.has(urlId)) {
+                productMap.set(urlId, {
+                  id: urlId,
+                  name: name,
+                  categories: categories,
+                  deletedAt: new Date().toLocaleDateString()
+                });
+              }
+            });
+            
+            resolve({ success: true, products: Array.from(productMap.values()) });
+          } catch (error) {
+            console.error('Error processing deleted products:', error);
+            resolve({ success: false, error: error.message });
+          }
+        },
+        error: (error) => {
+          console.error('Error parsing deleted CSV:', error);
+          resolve({ success: false, error: error.message });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error reading deleted products:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para restaurar producto eliminado específico del proyecto
+ipcMain.handle('restore-product', async (event, directoryPath, productId) => {
+  try {
+    const csvPath = path.join(directoryPath, 'salida.csv');
+    const deletedDir = path.join(directoryPath, 'eliminados');
+    const deletedCsvPath = path.join(deletedDir, 'salida.csv');
+    const deletedImagesDir = path.join(deletedDir, 'procesadas');
+    
+    // Leer CSV de eliminados con encoding latin1 (ANSI)
+    const deletedCsvContent = await fs.readFile(deletedCsvPath, 'latin1');
+    
+    return new Promise(async (resolve) => {
+      Papa.parse(deletedCsvContent, {
+        header: true,
+        delimiter: ';',
+        skipEmptyLines: false,
+        complete: async (deletedResults) => {
+          try {
+            const allDeletedRows = deletedResults.data;
+            const remainingDeletedRows = [];
+            const restoredRows = [];
+            
+            // Separar filas del producto a restaurar
+            allDeletedRows.forEach(row => {
+              const urlId = row['Identificador de URL'] || '';
+              if (urlId === productId) {
+                restoredRows.push(row);
+              } else {
+                remainingDeletedRows.push(row);
+              }
+            });
+            
+            if (restoredRows.length === 0) {
+              resolve({ success: false, error: 'Product not found in deleted items' });
+              return;
+            }
+            
+            // Actualizar CSV de eliminados
+            const updatedDeletedCsvContent = Papa.unparse(remainingDeletedRows, {
+              delimiter: ';',
+              header: true,
+              skipEmptyLines: false
+            });
+            await fs.writeFile(deletedCsvPath, updatedDeletedCsvContent, 'latin1');
+            
+            // Restaurar en CSV principal
+            const mainExists = await fs.access(csvPath).then(() => true).catch(() => false);
+            let mainCsvContent = '';
+            
+            if (mainExists) {
+              const existingMainContent = await fs.readFile(csvPath, 'latin1');
+              const existingMainResults = Papa.parse(existingMainContent, {
+                header: true,
+                delimiter: ';',
+                skipEmptyLines: false
+              });
+              
+              const combinedMainRows = [...existingMainResults.data, ...restoredRows];
+              mainCsvContent = Papa.unparse(combinedMainRows, {
+                delimiter: ';',
+                header: true,
+                skipEmptyLines: false
+              });
+            } else {
+              mainCsvContent = Papa.unparse(restoredRows, {
+                delimiter: ';',
+                header: true,
+                skipEmptyLines: false
+              });
+            }
+            
+            await fs.writeFile(csvPath, mainCsvContent, 'latin1');
+            
+            // Restaurar imágenes
+            let restoredImages = 0;
+            try {
+              // Restaurar mapeo de imágenes desde imagen-url.csv eliminado
+              const deletedImageUrlCsvPath = path.join(deletedDir, 'imagen-url.csv');
+              const deletedImageUrlExists = await fs.access(deletedImageUrlCsvPath).then(() => true).catch(() => false);
+              
+              if (deletedImageUrlExists) {
+                const deletedImageUrlContent = await fs.readFile(deletedImageUrlCsvPath, 'utf-8');
+                const deletedImageUrlResults = Papa.parse(deletedImageUrlContent, {
+                  header: true,
+                  delimiter: ';',
+                  skipEmptyLines: true
+                });
+                
+                const productImageMapping = deletedImageUrlResults.data.find(row => row.url === productId);
+                if (productImageMapping && productImageMapping.imagenes) {
+                  const imageList = productImageMapping.imagenes.split(',').map(img => img.trim()).filter(img => img);
+                  
+                  const procesadasDir = path.join(directoryPath, 'procesadas');
+                  await fs.mkdir(procesadasDir, { recursive: true });
+                  
+                  for (const imageName of imageList) {
+                    const sourcePath = path.join(deletedImagesDir, imageName);
+                    const destPath = path.join(procesadasDir, imageName);
+                    
+                    try {
+                      await fs.access(sourcePath);
+                      await fs.rename(sourcePath, destPath);
+                      restoredImages++;
+                    } catch (error) {
+                      console.warn(`Could not restore image ${imageName}:`, error.message);
+                    }
+                  }
+                  
+                  // Restaurar entrada en imagen-url.csv principal
+                  const imagenUrlCsvPath = path.join(directoryPath, 'imagen-url.csv');
+                  const imagenUrlExists = await fs.access(imagenUrlCsvPath).then(() => true).catch(() => false);
+                  
+                  if (imagenUrlExists) {
+                    const existingImageUrlContent = await fs.readFile(imagenUrlCsvPath, 'utf-8');
+                    const existingImageUrlResults = Papa.parse(existingImageUrlContent, {
+                      header: true,
+                      delimiter: ';',
+                      skipEmptyLines: true
+                    });
+                    
+                    const combinedImageUrlData = [...existingImageUrlResults.data, productImageMapping];
+                    const combinedImageUrlContent = Papa.unparse(combinedImageUrlData, {
+                      delimiter: ';',
+                      header: true
+                    });
+                    await fs.writeFile(imagenUrlCsvPath, combinedImageUrlContent, 'utf-8');
+                  } else {
+                    const newImageUrlContent = Papa.unparse([productImageMapping], {
+                      delimiter: ';',
+                      header: true
+                    });
+                    await fs.writeFile(imagenUrlCsvPath, newImageUrlContent, 'utf-8');
+                  }
+                  
+                  // Remover entrada del imagen-url.csv eliminado
+                  const updatedDeletedImageUrlData = deletedImageUrlResults.data.filter(row => row.url !== productId);
+                  const updatedDeletedImageUrlContent = Papa.unparse(updatedDeletedImageUrlData, {
+                    delimiter: ';',
+                    header: true
+                  });
+                  await fs.writeFile(deletedImageUrlCsvPath, updatedDeletedImageUrlContent, 'utf-8');
+                }
+              }
+            } catch (error) {
+              console.warn('Error restoring images:', error);
+            }
+            
+            resolve({ 
+              success: true, 
+              restoredImages,
+              restoredVariants: restoredRows.length
+            });
+          } catch (error) {
+            console.error('Error processing restoration:', error);
+            resolve({ success: false, error: error.message });
+          }
+        },
+        error: (error) => {
+          console.error('Error parsing deleted CSV for restoration:', error);
+          resolve({ success: false, error: error.message });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error restoring product:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para eliminar imagen permanentemente del proyecto
+ipcMain.handle('delete-image-permanently', async (event, imagePath) => {
+  try {
+    await fs.unlink(path.normalize(imagePath));
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting image permanently:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handler para actualizar imagen-url.csv
+ipcMain.handle('update-image-url-csv', async (event, directoryPath, productId, imageName, action) => {
+  try {
+    const imagenUrlCsvPath = path.join(directoryPath, 'imagen-url.csv');
+    const exists = await fs.access(imagenUrlCsvPath).then(() => true).catch(() => false);
+    
+    if (!exists) {
+      return { success: false, error: 'imagen-url.csv not found' };
+    }
+
+    const imageUrlContent = await fs.readFile(imagenUrlCsvPath, 'utf-8');
+    
+    return new Promise((resolve) => {
+      Papa.parse(imageUrlContent, {
+        header: true,
+        delimiter: ';',
+        skipEmptyLines: true,
+        complete: async (results) => {
+          try {
+            // Actualizar datos
+            const updatedData = results.data.map(row => {
+              if (row.url === productId) {
+                let imageList = row.imagenes ? row.imagenes.split(',').map(img => img.trim()) : [];
+                
+                if (action === 'remove') {
+                  imageList = imageList.filter(img => img !== imageName);
+                } else if (action === 'add') {
+                  if (!imageList.includes(imageName)) {
+                    imageList.push(imageName);
+                  }
+                }
+                
+                return {
+                  ...row,
+                  imagenes: imageList.join(',')
+                };
+              }
+              return row;
+            });
+
+            // Guardar archivo actualizado
+            const updatedContent = Papa.unparse(updatedData, {
+              delimiter: ';',
+              header: true
+            });
+            
+            await fs.writeFile(imagenUrlCsvPath, updatedContent, 'utf-8');
+            resolve({ success: true });
+          } catch (error) {
+            console.error('Error updating imagen-url.csv:', error);
+            resolve({ success: false, error: error.message });
+          }
+        },
+        error: (error) => {
+          console.error('Error parsing imagen-url.csv:', error);
+          resolve({ success: false, error: error.message });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error updating imagen-url.csv:', error);
+    return { success: false, error: error.message };
   }
 });
 
