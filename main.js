@@ -1070,6 +1070,13 @@ ipcMain.handle('load-image', async (event, imagePath) => {
   }
 });
 
+// ===== UTILITY FUNCTIONS =====
+
+// Función utilitaria para validar que una fila CSV tiene contenido
+function rowHasContent(row) {
+  return Object.values(row).some(value => value && value.toString().trim() !== '');
+}
+
 // ===== HANDLERS PARA GESTIÓN DE PRODUCTOS =====
 
 // Handler para leer y procesar productos desde salida.csv específico del proyecto
@@ -1207,13 +1214,16 @@ ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, 
       Papa.parse(csvContent, {
         header: true,
         delimiter: ';',
-        skipEmptyLines: false,
+        skipEmptyLines: true,
         complete: async (results) => {
           try {
             let variantIndex = 0;
             
+            // Filtrar filas vacías antes de procesar
+            const filteredData = results.data.filter(rowHasContent);
+            
             // Actualizar las filas que corresponden al producto
-            const processedData = results.data.map(row => {
+            const processedData = filteredData.map(row => {
               const urlId = row['Identificador de URL'] || '';
               
               if (urlId === productId) {
@@ -1255,11 +1265,17 @@ ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, 
             const newCsvContent = Papa.unparse(processedData, {
               delimiter: ';',
               header: true,
-              skipEmptyLines: false
+              skipEmptyLines: true
             });
 
+            // Limpiar el contenido del CSV para evitar líneas vacías
+            const cleanedContent = newCsvContent
+              .split('\n')
+              .filter(line => line.trim() !== '' && !line.match(/^;*$/))
+              .join('\n');
+
             // Guardar con encoding latin1 (ANSI)
-            await fs.writeFile(csvPath, newCsvContent, 'latin1');
+            await fs.writeFile(csvPath, cleanedContent, 'latin1');
             resolve({ success: true });
           } catch (error) {
             console.error('Error updating CSV:', error);
@@ -1297,7 +1313,7 @@ ipcMain.handle('delete-product', async (event, directoryPath, productId) => {
       Papa.parse(csvContent, {
         header: true,
         delimiter: ';',
-        skipEmptyLines: false,
+        skipEmptyLines: true,
         complete: async (results) => {
           try {
             const allRows = results.data;
@@ -1310,7 +1326,10 @@ ipcMain.handle('delete-product', async (event, directoryPath, productId) => {
               if (urlId === productId) {
                 deletedRows.push(row);
               } else {
-                remainingRows.push(row);
+                // Solo agregar filas que no estén completamente vacías
+                if (rowHasContent(row)) {
+                  remainingRows.push(row);
+                }
               }
             });
             
@@ -1323,9 +1342,16 @@ ipcMain.handle('delete-product', async (event, directoryPath, productId) => {
             const remainingCsvContent = Papa.unparse(remainingRows, {
               delimiter: ';',
               header: true,
-              skipEmptyLines: false
+              skipEmptyLines: true
             });
-            await fs.writeFile(csvPath, remainingCsvContent, 'latin1');
+            
+            // Limpiar el contenido del CSV para evitar líneas vacías al final
+            const cleanedContent = remainingCsvContent
+              .split('\n')
+              .filter(line => line.trim() !== '' && !line.match(/^;*$/))
+              .join('\n');
+            
+            await fs.writeFile(csvPath, cleanedContent, 'latin1');
             
             // Crear o actualizar CSV de eliminados
             let deletedCsvContent = '';

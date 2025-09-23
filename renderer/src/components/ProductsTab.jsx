@@ -396,7 +396,7 @@ const ProductsTab = () => {
     }
   };
 
-  // Función para restaurar producto eliminado
+  // Función para limpiar CSV manualmente
   const restoreProduct = async (product) => {
     if (!confirm(`¿Estás seguro de que quieres restaurar el producto "${product.name}"?`)) {
       return;
