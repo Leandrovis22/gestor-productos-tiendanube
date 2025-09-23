@@ -10,6 +10,7 @@ const InpaintingTool = forwardRef(({
   zoomFactor,
   displayOffset, 
   displaySize,
+  panOffset = { x: 0, y: 0 },
   children
 }, ref) => {
   const [isInpaintMode, setIsInpaintMode] = useState(true);
@@ -100,7 +101,7 @@ const InpaintingTool = forwardRef(({
   };
 
   const startDrawing = (e) => {
-    if (!isInpaintMode || isInpaintingInProgressRef.current) return;
+    if (!isInpaintMode || isInpaintingInProgressRef.current || e.button !== 0) return; // Solo botón izquierdo
     
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords) return;
@@ -177,7 +178,7 @@ const InpaintingTool = forwardRef(({
     
     // Redraw clean image
     if (currentImage && mainCanvasRef.current) {
-      displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor);
+      displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor, panOffset);
     }
     
     // Clear any pending auto-apply
@@ -205,7 +206,7 @@ const InpaintingTool = forwardRef(({
       onImageUpdateFromInpaint(originalImageBackup);
 
       // Force immediate redraw with restored image
-      displayImageHelper(originalImageBackup, mainCanvasRef.current, zoomFactor);
+      displayImageHelper(originalImageBackup, mainCanvasRef.current, zoomFactor, panOffset);
       
       // Don't reset backup state - allow multiple undos
     }
@@ -301,7 +302,7 @@ const InpaintingTool = forwardRef(({
           onImageUpdateFromInpaint(img);
           setHasUnsavedChanges(true);
           // Force immediate redraw with new image
-          displayImageHelper(img, mainCanvasRef.current, zoomFactor);
+          displayImageHelper(img, mainCanvasRef.current, zoomFactor, panOffset);
         };
         img.onerror = () => {
           console.error('❌ [INPAINT] Error cargando la imagen procesada desde base64');
@@ -311,7 +312,7 @@ const InpaintingTool = forwardRef(({
         img.src = result.imageData;
       } else {
         // If inpainting fails, redraw the current image to clear any temporary strokes
-        displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor);
+        displayImageHelper(currentImage, mainCanvasRef.current, zoomFactor, panOffset);
         setMaskPaths([]); // Clear paths on failure too
         throw new Error(result.error || 'Error desconocido en inpainting');
       }
@@ -330,9 +331,23 @@ const InpaintingTool = forwardRef(({
     const mainCanvas = mainCanvasRef.current;
     if (!mainCanvas || !isInpaintMode) return;
 
-    const handleMouseDown = (e) => startDrawing(e);
-    const handleMouseMove = (e) => draw(e);
-    const handleMouseUp = (e) => stopDrawing(e);
+    const handleMouseDown = (e) => {
+      if (e.button === 0) { // Solo botón izquierdo para inpainting
+        startDrawing(e);
+      }
+    };
+    
+    const handleMouseMove = (e) => {
+      if (e.button !== 0 || e.buttons !== 1) return; // Solo si botón izquierdo está presionado
+      draw(e);
+    };
+    
+    const handleMouseUp = (e) => {
+      if (e.button === 0) { // Solo botón izquierdo
+        stopDrawing(e);
+      }
+    };
+    
     const handleMouseLeave = (e) => stopDrawing(e);
 
     mainCanvas.addEventListener('mousedown', handleMouseDown);
@@ -384,7 +399,7 @@ const InpaintingTool = forwardRef(({
                   title="Restaurar imagen original"
                 >
                   <Undo size={14} />
-                  Deshacer Todo
+                  Deshacer
                 </button>
               )}
             </div>

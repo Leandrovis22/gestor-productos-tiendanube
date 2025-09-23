@@ -8,9 +8,10 @@ import InpaintingTool from '../InpaintingTool';
  * @param {HTMLImageElement} img - La imagen a dibujar.
  * @param {HTMLCanvasElement} canvas - El canvas principal.
  * @param {number} zoomFactor - El factor de zoom actual.
+ * @param {Object} panOffset - El offset de arrastre { x, y }.
  * @returns {{width: number, height: number, x: number, y: number}} - Las dimensiones y offset de la imagen dibujada.
  */
-export const displayImageHelper = (img, canvas, zoomFactor) => {
+export const displayImageHelper = (img, canvas, zoomFactor, panOffset = { x: 0, y: 0 }) => {
     const ctx = canvas.getContext('2d');
 
     const rect = canvas.getBoundingClientRect();
@@ -24,8 +25,8 @@ export const displayImageHelper = (img, canvas, zoomFactor) => {
     const displayWidth = img.width * scale;
     const displayHeight = img.height * scale;
 
-    const offsetX = (containerWidth - displayWidth) / 2;
-    const offsetY = (containerHeight - displayHeight) / 2;
+    const offsetX = (containerWidth - displayWidth) / 2 + panOffset.x;
+    const offsetY = (containerHeight - displayHeight) / 2 + panOffset.y;
 
     canvas.width = containerWidth;
     canvas.height = containerHeight;
@@ -160,6 +161,9 @@ export const useImageManager = () => {
   const [zoomFactor, setZoomFactor] = useState(1.0);
   const [displayOffset, setDisplayOffset] = useState({ x: 0, y: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
 
   const imageRef = useRef(null);
   const canvasRef = useRef(null);
@@ -201,6 +205,7 @@ export const useImageManager = () => {
           setCurrentDisplayedImage(filename);
           setCurrentImagePath(imagePath);
           setZoomFactor(1.0);
+          setPanOffset({ x: 0, y: 0 });
           setTimeout(() => displayImage(img), 100);
           loadingImageRef.current = null;
         }
@@ -221,7 +226,7 @@ export const useImageManager = () => {
     const canvas = canvasRef.current;
     if (!canvas || !img) return;
 
-    const { width, height, x, y } = displayImageHelper(img, canvas, zoomFactor);
+    const { width, height, x, y } = displayImageHelper(img, canvas, zoomFactor, panOffset);
     setDisplaySize({ width, height }); // Needed for coordinate mapping
     setDisplayOffset({ x, y }); // Needed for coordinate mapping
   };
@@ -233,9 +238,100 @@ export const useImageManager = () => {
     setZoomFactor(newZoom);
   };
 
+  // Manejar zoom con posición del mouse
+  const handleZoomAtPosition = (delta, mouseX, mouseY) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentImage) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = mouseX - rect.left;
+    const canvasY = mouseY - rect.top;
+
+    // Factor de zoom
+    const factor = delta > 0 ? 1.1 : 0.9;
+    const newZoom = Math.max(0.1, Math.min(5.0, zoomFactor * factor));
+
+    // Calcular el nuevo offset para mantener el punto del mouse en la misma posición
+    const zoomDelta = newZoom / zoomFactor;
+    
+    // Ajustar el pan offset basado en la posición del mouse y el centro de la imagen
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    const mouseOffsetFromCenter = {
+      x: canvasX - centerX,
+      y: canvasY - centerY
+    };
+    
+    const newPanX = panOffset.x - mouseOffsetFromCenter.x * (zoomDelta - 1);
+    const newPanY = panOffset.y - mouseOffsetFromCenter.y * (zoomDelta - 1);
+
+    setPanOffset({ x: newPanX, y: newPanY });
+    setZoomFactor(newZoom);
+  };
+
+  // Iniciar arrastre
+  const handleMouseDown = (e) => {
+    if (e.button === 2) { // Botón derecho
+      e.preventDefault();
+      setIsDragging(true);
+      const rect = canvasRef.current.getBoundingClientRect();
+      setLastMousePos({ 
+        x: e.clientX - rect.left, 
+        y: e.clientY - rect.top 
+      });
+    }
+  };
+
+  // Manejar movimiento del mouse
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      e.preventDefault();
+      const rect = canvasRef.current.getBoundingClientRect();
+      const currentMouseX = e.clientX - rect.left;
+      const currentMouseY = e.clientY - rect.top;
+      
+      const deltaX = currentMouseX - lastMousePos.x;
+      const deltaY = currentMouseY - lastMousePos.y;
+      
+      // Velocidad fija de arrastre
+      const dragSpeed = 6; // Ajusta este valor para cambiar la velocidad
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      
+      if (distance > 0) {
+        // Normalizar la dirección y aplicar velocidad fija
+        const normalizedX = deltaX / distance;
+        const normalizedY = deltaY / distance;
+        
+        const moveX = normalizedX * Math.min(distance, dragSpeed);
+        const moveY = normalizedY * Math.min(distance, dragSpeed);
+        
+        setPanOffset(prev => ({
+          x: prev.x + moveX,
+          y: prev.y + moveY
+        }));
+      }
+      
+      setLastMousePos({ x: currentMouseX, y: currentMouseY });
+    }
+  };
+
+  // Finalizar arrastre
+  const handleMouseUp = (e) => {
+    if (e.button === 2) { // Botón derecho
+      setIsDragging(false);
+    }
+  };
+
+  // Prevenir menú contextual
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+  };
+
   // Resetear zoom
   const resetZoom = () => {
     setZoomFactor(1.0);
+    setPanOffset({ x: 0, y: 0 });
   };
 
   // Cambiar a imagen de producto específica
@@ -331,6 +427,8 @@ export const useImageManager = () => {
     zoomFactor,
     displayOffset,
     displaySize,
+    panOffset,
+    isDragging,
     
     // Referencias
     imageRef,
@@ -341,13 +439,18 @@ export const useImageManager = () => {
     loadImageOnly,
     displayImage,
     handleZoom,
+    handleZoomAtPosition,
     resetZoom,
     switchToProductImage,
     saveCurrentImageIfEdited,
     saveImageFromState,
     handleInpaintingImageUpdate,
     resetImageState,
-    loadCurrentProduct
+    loadCurrentProduct,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    handleContextMenu
   };
 };
 
@@ -365,7 +468,7 @@ export const ImageManager = ({
     if (imageManager.currentImage) {
         imageManager.displayImage(imageManager.currentImage);
     }
-  }, [imageManager.zoomFactor, imageManager.currentImage]);
+  }, [imageManager.zoomFactor, imageManager.panOffset, imageManager.currentImage]);
 
   // Efecto para forzar re-render de miniaturas cuando cambian las imágenes del producto
   useEffect(() => {
@@ -389,24 +492,55 @@ export const ImageManager = ({
 
     const handleWheel = (e) => {
       e.preventDefault();
-      imageManager.handleZoom(e.deltaY > 0 ? -1 : 1);
+      imageManager.handleZoomAtPosition(e.deltaY > 0 ? -1 : 1, e.clientX, e.clientY);
     };
 
+    const handleMouseDown = (e) => {
+      if (e.button === 2) { // Solo para botón derecho
+        imageManager.handleMouseDown(e);
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (imageManager.isDragging) {
+        imageManager.handleMouseMove(e);
+      }
+    };
+
+    const handleMouseUp = (e) => {
+      if (e.button === 2 && imageManager.isDragging) { // Solo para botón derecho
+        imageManager.handleMouseUp(e);
+      }
+    };
+
+    const handleContextMenu = (e) => imageManager.handleContextMenu(e);
+
+    // Event listeners del canvas
     canvas.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('contextmenu', handleContextMenu);
+
+    // Event listeners globales para capturar mouse fuera del canvas
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       if (canvas) {
         canvas.removeEventListener('wheel', handleWheel);
+        canvas.removeEventListener('mousedown', handleMouseDown);
+        canvas.removeEventListener('contextmenu', handleContextMenu);
       }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [imageManager.canvasRef, imageManager.handleZoom]);
+  }, [imageManager.canvasRef, imageManager.handleZoomAtPosition, imageManager.handleMouseDown, imageManager.handleMouseMove, imageManager.handleMouseUp, imageManager.handleContextMenu, imageManager.isDragging]);
 
   return (
     <div className="w-[500px] bg-gray-800 border-r border-gray-700 flex flex-col" ref={imageManager.imageRef}>
       <div className="flex-1 p-4 relative">
         <canvas
           ref={imageManager.canvasRef}
-          className="w-full h-full cursor-default"
+          className={`w-full h-full ${imageManager.isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         />
       </div>
 
@@ -419,6 +553,7 @@ export const ImageManager = ({
         zoomFactor={imageManager.zoomFactor}
         displayOffset={imageManager.displayOffset}
         displaySize={imageManager.displaySize}
+        panOffset={imageManager.panOffset}
       >
         <div className="p-2 border-t border-gray-700 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
