@@ -1,6 +1,6 @@
 // root main.js
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const Papa = require('papaparse');
@@ -11,6 +11,17 @@ const os = require('os');
 
 let mainWindow;
 
+// Registrar protocolo personalizado para servir imágenes locales
+app.whenReady().then(() => {
+  protocol.registerFileProtocol('local-image', (request, callback) => {
+    const url = request.url.substr(13); // Remover 'local-image://'
+    const imagePath = decodeURIComponent(url);
+    callback({ path: imagePath });
+  });
+  
+  createWindow();
+});
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -19,7 +30,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: false // Necesario para el protocolo personalizado
     },
     icon: path.join(__dirname, 'assets/icon.png'),
     show: false
@@ -1727,8 +1739,6 @@ ipcMain.handle('update-image-url-csv', async (event, directoryPath, productId, i
 });
 
 
-
-app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

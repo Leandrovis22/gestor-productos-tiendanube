@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateProductInResultado: (resultadoPath, primaryImageName, propertyGroup) => ipcRenderer.invoke('update-product-in-resultado', resultadoPath, primaryImageName, propertyGroup),
   removeProductsFromResultado: (resultadoPath, imagesToRemove) => ipcRenderer.invoke('remove-products-from-resultado', resultadoPath, imagesToRemove),
 
+  // Protocolo personalizado para imágenes locales
+  getLocalImageUrl: (imagePath) => `local-image://${encodeURIComponent(imagePath)}`,
+
   readConfig: (directoryPath) => ipcRenderer.invoke('read-config', directoryPath),
   savePredefinedType: (directoryPath, newType) => ipcRenderer.invoke('savePredefinedType', directoryPath, newType),
 

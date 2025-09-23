@@ -185,18 +185,7 @@ const ProductsTab = () => {
         const endIndex = startIndex + productsPerPage;
         const visibleProducts = productsArray.slice(startIndex, endIndex);
         
-        const visibleImages = [];
-        visibleProducts.forEach(product => {
-          if (product.images && product.images.length > 0) {
-            // Solo cargar la primera imagen de cada producto para optimizar
-            visibleImages.push(product.images[0]);
-          }
-        });
-        
-        // Cargar datos de imagen solo para las imágenes visibles
-        if (visibleImages.length > 0) {
-          await loadImageDataForFiles([...new Set(visibleImages)], directory);
-        }
+        // Ya no necesitamos cargar imágenes en base64, usaremos protocolo local-image://
       }
     } catch (error) {
       console.error('Error loading products:', error);
@@ -241,9 +230,7 @@ const ProductsTab = () => {
         }
 
         setProductImages(productImageFiles);
-        
-        // Cargar datos de imagen para cada archivo
-        await loadImageDataForFiles(productImageFiles, directory);
+        // Ya no necesitamos cargar base64, usamos protocolo local-image://
       }
     } catch (error) {
       console.error('Error loading product images:', error);
@@ -251,28 +238,28 @@ const ProductsTab = () => {
     }
   };
 
-  // Función para cargar datos de imagen como base64
-  const loadImageDataForFiles = async (imageFiles, directory) => {
-    const newImageDataCache = new Map(imageDataCache); // Mantener cache existente
+  // DEPRECATED: Función para cargar datos de imagen como base64 - Ya no necesaria
+  // const loadImageDataForFiles = async (imageFiles, directory) => {
+  //   const newImageDataCache = new Map(imageDataCache); // Mantener cache existente
     
-    for (const imageName of imageFiles) {
-      try {
-        // Solo cargar si no está ya en cache
-        if (!newImageDataCache.has(imageName)) {
-          const imagePath = await window.electronAPI.joinPaths(directory, 'procesadas', imageName);
-          const imageData = await window.electronAPI.loadImage(imagePath);
+  //   for (const imageName of imageFiles) {
+  //     try {
+  //       // Solo cargar si no está ya en cache
+  //       if (!newImageDataCache.has(imageName)) {
+  //         const imagePath = await window.electronAPI.joinPaths(directory, 'procesadas', imageName);
+  //         const imageData = await window.electronAPI.loadImage(imagePath);
           
-          if (imageData) {
-            newImageDataCache.set(imageName, imageData);
-          }
-        }
-      } catch (error) {
-        console.warn(`Error loading image ${imageName}:`, error);
-      }
-    }
+  //         if (imageData) {
+  //           newImageDataCache.set(imageName, imageData);
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.warn(`Error loading image ${imageName}:`, error);
+  //     }
+  //   }
     
-    setImageDataCache(newImageDataCache);
-  };
+  //   setImageDataCache(newImageDataCache);
+  // };
 
   // Función para cargar productos eliminados
   const loadDeletedProducts = async () => {
@@ -485,21 +472,21 @@ const ProductsTab = () => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Cargar imágenes cuando cambia la página
-  useEffect(() => {
-    if (workingDirectory && currentProducts.length > 0) {
-      const visibleImages = [];
-      currentProducts.forEach(product => {
-        if (product.images && product.images.length > 0) {
-          visibleImages.push(product.images[0]);
-        }
-      });
+  // Cargar imágenes cuando cambia la página - Ya no necesario con protocolo local-image://
+  // useEffect(() => {
+  //   if (workingDirectory && currentProducts.length > 0) {
+  //     const visibleImages = [];
+  //     currentProducts.forEach(product => {
+  //       if (product.images && product.images.length > 0) {
+  //         visibleImages.push(product.images[0]);
+  //       }
+  //     });
       
-      if (visibleImages.length > 0) {
-        loadImageDataForFiles([...new Set(visibleImages)], workingDirectory);
-      }
-    }
-  }, [currentPage, currentProducts.length]);
+  //     if (visibleImages.length > 0) {
+  //       loadImageDataForFiles([...new Set(visibleImages)], workingDirectory);
+  //     }
+  //   }
+  // }, [currentPage, currentProducts.length]);
 
   // Cargar productos eliminados cuando se cambia a esa vista
   useEffect(() => {
@@ -595,20 +582,25 @@ const ProductsTab = () => {
                 {/* Imagen del producto */}
                 <div className="w-full aspect-[3/4] bg-gray-700 flex items-center justify-center">
                   {product.images?.length > 0 ? (
-                    imageDataCache.get(product.images[0]) ? (
-                      <img 
-                        src={imageDataCache.get(product.images[0])}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-600 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                      </div>
-                    )
-                  ) : (
+                    <img 
+                      src={window.electronAPI.getLocalImageUrl(
+                        `${workingDirectory}\\procesadas\\${product.images[0]}`
+                      )}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className={`w-full h-full bg-gray-600 items-center justify-center ${
+                      product.images?.length > 0 ? 'hidden' : 'flex'
+                    }`}
+                  >
                     <Image size={24} className="text-gray-500" />
-                  )}
+                  </div>
                 </div>
 
                 {/* Información del producto */}
@@ -857,36 +849,35 @@ const ProductsTab = () => {
               ) : (
                 <div className="max-h-[calc(100vh-1px)] overflow-y-auto pr-2">
                   <div className="grid grid-cols-2 gap-3">
-                    {productImages.map(image => {
-                      const imageData = imageDataCache.get(image);
-                      return (
-                        <div key={image} className="relative group">
-                          <div className="aspect-[3/4] bg-gray-700 rounded-lg overflow-hidden">
-                            {imageData ? (
-                              <img 
-                                src={imageData}
-                                alt={image}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gray-600 flex items-center justify-center text-xs text-gray-400">
-                                <div className="text-center">
-                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                                  Cargando...
-                                </div>
-                              </div>
+                    {productImages.map(image => (
+                      <div key={image} className="relative group">
+                        <div className="aspect-[3/4] bg-gray-700 rounded-lg overflow-hidden">
+                          <img 
+                            src={window.electronAPI.getLocalImageUrl(
+                              `${workingDirectory}\\procesadas\\${image}`
                             )}
+                            alt={image}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                          <div className="hidden w-full h-full bg-gray-600 items-center justify-center text-xs text-gray-400">
+                            <div className="text-center">
+                              Error al cargar imagen
+                            </div>
                           </div>
-                          <button
-                            onClick={() => deleteImage(image)}
-                            className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={12} />
-                          </button>
-                          <p className="text-xs text-gray-400 mt-1 truncate">{image}</p>
                         </div>
-                      );
-                    })}
+                        <button
+                          onClick={() => deleteImage(image)}
+                          className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={12} />
+                        </button>
+                        <p className="text-xs text-gray-400 mt-1 truncate">{image}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
