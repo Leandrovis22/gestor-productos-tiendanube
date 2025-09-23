@@ -1210,27 +1210,42 @@ ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, 
         skipEmptyLines: false,
         complete: async (results) => {
           try {
+            let variantIndex = 0;
+            
             // Actualizar las filas que corresponden al producto
             const processedData = results.data.map(row => {
               const urlId = row['Identificador de URL'] || '';
               
               if (urlId === productId) {
-                // Actualizar solo las filas principales (que tienen nombre)
+                // Actualizar la fila principal (que tiene nombre)
                 if (row['Nombre'] && row['Nombre'].trim()) {
-                  return {
+                  const updatedRow = {
                     ...row,
                     'Nombre': updatedData.name || row['Nombre'],
-                    'Categorías': updatedData.categories || row['Categorías'],
-                    'Precio': updatedData.price || row['Precio'],
-                    'Stock': updatedData.stock || row['Stock']
+                    'Categorías': updatedData.categories || row['Categorías']
                   };
+                  
+                  // Actualizar precio y stock de la variante correspondiente si existe
+                  if (updatedData.variants && updatedData.variants[variantIndex]) {
+                    const variant = updatedData.variants[variantIndex];
+                    updatedRow['Precio'] = variant.price || row['Precio'];
+                    updatedRow['Stock'] = variant.stock || row['Stock'];
+                  }
+                  
+                  variantIndex++;
+                  return updatedRow;
                 } else {
-                  // Para filas de variantes, solo actualizar precio y stock
-                  return {
-                    ...row,
-                    'Precio': updatedData.price || row['Precio'],
-                    'Stock': updatedData.stock || row['Stock']
-                  };
+                  // Para filas de variantes (sin nombre), actualizar precio y stock
+                  const updatedRow = { ...row };
+                  
+                  if (updatedData.variants && updatedData.variants[variantIndex]) {
+                    const variant = updatedData.variants[variantIndex];
+                    updatedRow['Precio'] = variant.price || row['Precio'];
+                    updatedRow['Stock'] = variant.stock || row['Stock'];
+                  }
+                  
+                  variantIndex++;
+                  return updatedRow;
                 }
               }
               return row;

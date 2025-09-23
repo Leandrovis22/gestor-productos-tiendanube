@@ -131,7 +131,7 @@ const ProductsTab = () => {
           }
         }
 
-        // Procesar datos CSV para extraer productos únicos
+        // Procesar datos CSV para extraer productos únicos y sus variantes
         const productMap = new Map();
         
         csvData.forEach(row => {
@@ -141,8 +141,9 @@ const ProductsTab = () => {
           const price = row['Precio'] || '';
           const stock = row['Stock'] || '';
           
-          if (urlId && name) {
-            if (!productMap.has(urlId)) {
+          if (urlId) {
+            // Si el producto no existe y tiene nombre, es la fila principal del producto
+            if (!productMap.has(urlId) && name) {
               // Obtener imágenes del mapeo
               const productImages = imageMapping.get(urlId) || [];
               
@@ -157,23 +158,28 @@ const ProductsTab = () => {
               });
             }
             
-            // Agregar variante si tiene propiedades específicas
-            const variant = {
-              price: price,
-              stock: stock,
-              properties: []
-            };
-            
-            // Extraer propiedades de variante (1-3)
-            for (let i = 1; i <= 3; i++) {
-              const propName = row[`Nombre de propiedad ${i}`] || '';
-              const propValue = row[`Valor de propiedad ${i}`] || '';
-              if (propName && propValue) {
-                variant.properties.push({ name: propName, value: propValue });
+            // Siempre agregar la fila como variante (incluyendo la principal)
+            if (productMap.has(urlId)) {
+              const variant = {
+                price: price,
+                stock: stock,
+                properties: []
+              };
+              
+              // Extraer propiedades de variante (1-3)
+              for (let i = 1; i <= 3; i++) {
+                const propName = row[`Nombre de propiedad ${i}`] || '';
+                const propValue = row[`Valor de propiedad ${i}`] || '';
+                if (propName && propValue) {
+                  variant.properties.push({ name: propName, value: propValue });
+                }
               }
+              
+              // Marcar si es la variante principal (tiene nombre del producto)
+              variant.isMain = !!name;
+              
+              productMap.get(urlId).variants.push(variant);
             }
-            
-            productMap.get(urlId).variants.push(variant);
           }
         });
         
@@ -559,7 +565,7 @@ const ProductsTab = () => {
       </div>
 
       {/* Lista de productos */}
-      <div className="h-[calc(100vh-200px)] overflow-y-auto pr-2">
+      <div className="h-[calc(100vh-147px)] overflow-y-auto pr-2">
         <div className="grid grid-cols-6 gap-4">
           {loading ? (
             <div className="col-span-full text-center py-8">
@@ -808,33 +814,81 @@ const ProductsTab = () => {
             {/* Variantes del producto */}
             {editForm.variants && editForm.variants.length > 0 && (
               <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">Variantes del Producto</h3>
-                <div className="space-y-2">
-                  {editForm.variants.map((variant, index) => (
-                    <div key={index} className="flex items-center justify-between bg-gray-700 p-3 rounded">
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm">
-                          {variant.properties.map(prop => `${prop.name}: ${prop.value}`).join(', ') || 'Variante base'}
-                        </span>
+                <h3 className="text-lg font-semibold mb-4">Variantes del Producto ({editForm.variants.length})</h3>
+                <div className="space-y-3">
+                  {editForm.variants.map((variant, index) => {
+                    // Crear descripción de la variante
+                    let variantDescription = '';
+                    if (variant.properties.length > 0) {
+                      variantDescription = variant.properties
+                        .map(prop => `${prop.name}: ${prop.value}`)
+                        .join(', ');
+                    } else {
+                      variantDescription = variant.isMain ? 'Variante principal' : `Variante ${index + 1}`;
+                    }
+                    
+                    return (
+                      <div 
+                        key={index} 
+                        className={`flex items-center justify-between p-3 rounded ${
+                          variant.isMain ? 'bg-blue-900/30 border border-blue-500/30' : 'bg-gray-700'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {variantDescription}
+                            </span>
+                            {variant.isMain && (
+                              <span className="text-xs bg-blue-600 px-2 py-1 rounded">Principal</span>
+                            )}
+                          </div>
+                          {variant.properties.length > 0 && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              {variant.properties.length} propiedades
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <label className="text-gray-400">Precio:</label>
+                            <input
+                              type="text"
+                              value={variant.price}
+                              onChange={(e) => updateVariant(index, 'price', e.target.value)}
+                              className="w-20 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-gray-400">Stock:</label>
+                            <input
+                              type="text"
+                              value={variant.stock}
+                              onChange={(e) => updateVariant(index, 'stock', e.target.value)}
+                              className="w-16 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <input
-                          type="text"
-                          value={variant.price}
-                          onChange={(e) => updateVariant(index, 'price', e.target.value)}
-                          className="w-20 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
-                          placeholder="Precio"
-                        />
-                        <input
-                          type="text"
-                          value={variant.stock}
-                          onChange={(e) => updateVariant(index, 'stock', e.target.value)}
-                          className="w-20 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
-                          placeholder="Stock"
-                        />
-                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Resumen de variantes */}
+                <div className="mt-4 p-3 bg-gray-700/50 rounded text-sm">
+                  <div className="grid grid-cols-3 gap-4 text-gray-300">
+                    <div>
+                      <span className="font-medium">Total variantes:</span> {editForm.variants.length}
                     </div>
-                  ))}
+                    <div>
+                      <span className="font-medium">Con propiedades:</span> {editForm.variants.filter(v => v.properties.length > 0).length}
+                    </div>
+                    <div>
+                      <span className="font-medium">Stock total:</span> {editForm.variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0)}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -847,7 +901,7 @@ const ProductsTab = () => {
               {productImages.length === 0 ? (
                 <p className="text-gray-400 text-center py-4">No hay imágenes disponibles</p>
               ) : (
-                <div className="max-h-[calc(100vh-1px)] overflow-y-auto pr-2">
+                <div className="overflow-y-auto pr-2">
                   <div className="grid grid-cols-2 gap-3">
                     {productImages.map(image => (
                       <div key={image} className="relative group">
