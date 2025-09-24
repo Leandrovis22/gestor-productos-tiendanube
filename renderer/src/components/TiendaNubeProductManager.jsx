@@ -49,32 +49,7 @@ const FileSelector = ({ productManager }) => (
   </div>
 );
 
-// Tabs principales de la aplicación
-const MainTabs = ({ activeMainTab, setActiveMainTab }) => (
-  <div className="flex border-b border-gray-700 bg-gray-800">
-    <button
-      onClick={() => setActiveMainTab('editor')}
-      className={`px-6 py-3 text-sm font-medium ${
-        activeMainTab === 'editor' 
-          ? 'bg-gray-900 border-b-2 border-blue-500 text-white' 
-          : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-      }`}
-    >
-      Editor de Productos
-    </button>
-    <button
-      onClick={() => setActiveMainTab('productos')}
-      className={`px-6 py-3 text-sm font-medium flex items-center gap-2 ${
-        activeMainTab === 'productos' 
-          ? 'bg-gray-900 border-b-2 border-blue-500 text-white' 
-          : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-      }`}
-    >
-      <Package size={16} />
-      Productos Completados
-    </button>
-  </div>
-);
+
 
 // Tabs del editor
 const EditorTabs = ({ activeTab, setActiveTab }) => (
@@ -109,6 +84,17 @@ const EditorTabs = ({ activeTab, setActiveTab }) => (
     >
       Combinar
     </button>
+    <button
+      onClick={() => setActiveTab('productos')}
+      className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${
+        activeTab === 'productos' 
+          ? 'bg-gray-800 border-b-2 border-blue-500' 
+          : 'text-gray-400 hover:bg-gray-800'
+      }`}
+    >
+      <Package size={16} />
+      Productos Completados
+    </button>
   </div>
 );
 
@@ -135,7 +121,6 @@ const ProcessedScreen = ({ onRestart }) => (
 );
 
 const TiendaNubeProductManager = () => {
-  const [activeMainTab, setActiveMainTab] = useState('editor');
   const [activeTab, setActiveTab] = useState('general');
 
   // Hooks personalizados
@@ -348,10 +333,20 @@ const TiendaNubeProductManager = () => {
   );
 
   // Renderizado principal
-  if (activeMainTab === 'productos') {
+  if (activeTab === 'productos') {
     return (
       <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-        <MainTabs activeMainTab={activeMainTab} setActiveMainTab={setActiveMainTab} />
+        <div className="bg-gray-800 p-4 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold">Gestor de Productos TiendaNube</h1>
+            <button 
+              onClick={() => setActiveTab('general')} 
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded"
+            >
+              Volver al Editor
+            </button>
+          </div>
+        </div>
         <ProductsTab />
       </div>
     );
@@ -360,13 +355,17 @@ const TiendaNubeProductManager = () => {
   if (activeTab === 'combinar') {
     return (
       <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-        <MainTabs activeMainTab={activeMainTab} setActiveMainTab={setActiveMainTab} />
-        <button 
-          onClick={() => setActiveTab('general')} 
-          className="absolute top-16 right-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded z-10"
-        >
-          Volver al Editor
-        </button>
+        <div className="bg-gray-800 p-4 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold">Combinar Productos</h1>
+            <button 
+              onClick={() => setActiveTab('general')} 
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded"
+            >
+              Volver al Editor
+            </button>
+          </div>
+        </div>
         <CombineProducts 
           workingDirectory={productManager.workingDirectory} 
           onCombinationSaved={handleCombinationSaved} 
@@ -378,7 +377,6 @@ const TiendaNubeProductManager = () => {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-      <MainTabs activeMainTab={activeMainTab} setActiveMainTab={setActiveMainTab} />
       <Header />
 
       {productManager.allProductsProcessed ? (
