@@ -33,8 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Protocolo personalizado para imágenes locales
   getLocalImageUrl: (imagePath) => `local-image://${encodeURIComponent(imagePath)}`,
 
-  readConfig: (directoryPath) => ipcRenderer.invoke('read-config', directoryPath),
-  savePredefinedType: (directoryPath, newType) => ipcRenderer.invoke('savePredefinedType', directoryPath, newType),
+  readConfig: () => ipcRenderer.invoke('read-config'),
+  savePredefinedType: (newType) => ipcRenderer.invoke('savePredefinedType', newType),
 
   // New functions for Products tab
   readProductsFromCsv: (directoryPath) => ipcRenderer.invoke('read-products-from-csv', directoryPath),

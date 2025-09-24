@@ -198,7 +198,7 @@ const TiendaNubeProductManager = () => {
             values: currentValues
           };
           if (window.electronAPI) {
-            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, typeToSave);
+            const result = await window.electronAPI.savePredefinedType(typeToSave);
             if (result.success) productForm.loadConfig(result.config);
           }
         }
@@ -259,7 +259,7 @@ const TiendaNubeProductManager = () => {
             values: currentValues
           };
           if (window.electronAPI) {
-            const result = await window.electronAPI.savePredefinedType(productManager.workingDirectory, typeToSave);
+            const result = await window.electronAPI.savePredefinedType(typeToSave);
             if (result.success) productForm.loadConfig(result.config);
           }
         }

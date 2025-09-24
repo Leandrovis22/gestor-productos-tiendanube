@@ -9,6 +9,13 @@ const sharp = require('sharp');
 const { spawn } = require('child_process');
 const os = require('os');
 
+// Función para obtener la ubicación permanente del config
+function getPermanentConfigPath() {
+  const configDir = path.join(os.homedir(), '.gestor-productos');
+  const configPath = path.join(configDir, 'config.json');
+  return { configDir, configPath };
+}
+
 let mainWindow;
 
 // Registrar protocolo personalizado para servir imágenes locales
@@ -144,8 +151,16 @@ ipcMain.handle('create-csv', async (event, csvPath, headers) => {
   }
 });
 
-ipcMain.handle('read-config', async (event, directoryPath) => {
-  const configPath = path.join(directoryPath, 'config.json');
+ipcMain.handle('read-config', async (event) => {
+  const { configDir, configPath } = getPermanentConfigPath();
+  
+  // Crear directorio si no existe
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+  } catch (error) {
+    console.warn('Error creating config directory:', error);
+  }
+  
   try {
     const configContent = await fs.readFile(configPath, 'utf-8');
     let config = JSON.parse(configContent);
@@ -252,8 +267,16 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
   }
 });
 
-ipcMain.handle('savePredefinedType', async (event, directoryPath, newType) => {
-  const configPath = path.join(directoryPath, 'config.json');
+ipcMain.handle('savePredefinedType', async (event, newType) => {
+  const { configDir, configPath } = getPermanentConfigPath();
+  
+  // Crear directorio si no existe
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+  } catch (error) {
+    console.warn('Error creating config directory:', error);
+  }
+  
   try {
     let config = {};
     try {

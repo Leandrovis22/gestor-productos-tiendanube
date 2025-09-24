@@ -63,6 +63,11 @@ const ProductsTab = () => {
     });
   }, []);
 
+  // Cargar configuración al montar el componente
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
   // Función para seleccionar directorio de trabajo
   const selectWorkingDirectory = async () => {
     try {
@@ -71,7 +76,7 @@ const ProductsTab = () => {
         if (!result.canceled && result.directoryPath) {
           setWorkingDirectory(result.directoryPath);
           await loadProducts(result.directoryPath);
-          await loadConfig(result.directoryPath);
+          await loadConfig();
         }
       }
     } catch (error) {
@@ -79,11 +84,11 @@ const ProductsTab = () => {
     }
   };
 
-  // Función para cargar configuración
-  const loadConfig = async (directory) => {
+  // Función para cargar configuración desde ubicación permanente
+  const loadConfig = async () => {
     try {
       if (window.electronAPI) {
-        const configData = await window.electronAPI.readConfig(directory);
+        const configData = await window.electronAPI.readConfig();
         setConfig(configData);
       }
     } catch (error) {

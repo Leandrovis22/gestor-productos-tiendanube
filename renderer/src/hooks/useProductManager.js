@@ -31,8 +31,8 @@ export const useProductManager = () => {
           // Automatically set working directory to the same folder as the CSV
           const csvDirectory = await window.electronAPI.getDirectoryFromPath(result.filePath);
           setWorkingDirectory(csvDirectory);
-          // Load config from the new directory
-          loadConfig(csvDirectory);
+          // Load config from permanent location
+          loadConfig();
 
           setAllProductsProcessed(false);
 
@@ -66,8 +66,8 @@ export const useProductManager = () => {
         const result = await window.electronAPI.selectDirectory();
         if (result.directoryPath && !result.canceled) {
           setWorkingDirectory(result.directoryPath);
-          // Load config from the new directory
-          loadConfig(result.directoryPath);
+          // Load config from permanent location
+          loadConfig();
           setAllProductsProcessed(false);
           await createOutputCsv(result.directoryPath);
         }
@@ -96,14 +96,14 @@ export const useProductManager = () => {
     }
   };
 
-  // Carga de configuración desde config.json
-  const loadConfig = async (directory) => {
-    if (window.electronAPI && directory) {
+  // Carga de configuración desde ubicación permanente
+  const loadConfig = async () => {
+    if (window.electronAPI) {
       try {
-        const configData = await window.electronAPI.readConfig(directory);
+        const configData = await window.electronAPI.readConfig();
         setConfig(configData);
       } catch (error) {
-        console.error('Error loading config.json:', error);
+        console.error('Error loading config from permanent location:', error);
       }
     }
   };
@@ -380,6 +380,11 @@ export const useProductManager = () => {
     setCurrentMainProductImage('');
     setCurrentProductAllImages([]);
   };
+
+  // Cargar configuración inicial
+  useEffect(() => {
+    loadConfig();
+  }, []);
 
   // Configuración inicial del directorio
   useEffect(() => {
