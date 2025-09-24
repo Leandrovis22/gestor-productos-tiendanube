@@ -143,15 +143,22 @@ const ListView = ({
 
               {/* Información del producto */}
               <div className="bg-black bg-opacity-75 text-white p-2 min-h-[60px]">
-                <h3 className="font-semibold text-sm mb-1 leading-tight" title={product.name}>
+                <h3 className="font-semibold text-xs mb-1 leading-tight" title={product.name}>
                   {product.name}
                 </h3>
                 <div className="flex items-center justify-between text-xs text-gray-300">
-                  <span className="flex items-center gap-1">
-                    <Image size={12} />
-                    {product.images?.length || 0}
-                  </span>
-                  <span>${product.price}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1">
+                      <Image size={12} />
+                      {product.images?.length || 0}
+                    </span>
+                    <span className="text-gray-400">•</span>
+                    <span className="flex items-center gap-1">
+                      <Package size={12} />
+                      {product.variants?.length || 0}
+                    </span>
+                  </div>
+                  <span>${Math.floor(parseFloat((product.price || '0').replace(/,/g, ''))).toLocaleString('es-AR')}</span>
                 </div>
               </div>
             </div>
@@ -498,7 +505,7 @@ const ProductsTab = ({ setActiveTab }) => {
 
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 54;
+  const productsPerPage = 72;
 
   // Estados del formulario de edición
   const [editForm, setEditForm] = useState({
