@@ -13,6 +13,7 @@ import {
   FileText,
   AlertTriangle
 } from 'lucide-react';
+import { CategoryGroups } from './CategoryGroups';
 
 // Componente de selección de directorio (fuera del componente principal)
 const DirectorySelector = ({ selectWorkingDirectory, workingDirectory }) => (
@@ -268,7 +269,7 @@ const DeletedView = ({ deletedProducts, setView, restoreProduct }) => (
   </div>
 );
 
-// Vista de edición de producto - Movida fuera del componente principal
+// Vista de edición de producto - Nueva versión con pestañas y variantes
 const EditView = ({ 
   currentProduct, 
   editForm, 
@@ -279,218 +280,473 @@ const EditView = ({
   saveProduct, 
   productImages, 
   workingDirectory, 
-  deleteImage 
-}) => (
-  <div className="h-[calc(100vh-90px)] overflow-y-auto pr-2">
-    <div className="space-y-6">
-      <div className="flex justify-between items-center sticky top-0 bg-gray-900 z-10 py-2">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <Edit3 size={20} />
-          Editar Producto: {currentProduct?.name}
-        </h2>
-        <div className="flex gap-2">
+  deleteImage,
+  // Nuevos props para variantes
+  config,
+  selectedCategories,
+  toggleCategory,
+  editActiveTab,
+  setEditActiveTab,
+  useColor,
+  setUseColor,
+  useSize,
+  setUseSize,
+  useType,
+  setUseType,
+  selectedColors,
+  selectedSizes,
+  typeName,
+  setTypeName,
+  typeValues,
+  setTypeValues,
+  editVariantCombinations,
+  toggleColor,
+  toggleSize,
+  selectAllColors,
+  clearAllColors,
+  selectAllSizes,
+  clearAllSizes,
+  generateVariantCombinations,
+  updateVariantPrice,
+  updateVariantStock,
+  // Nuevas props para sugerencias
+  valueSuggestions,
+  handleTypeValuesChange,
+  selectPredefinedType,
+  selectValueSuggestion
+}) => {
+  // Función auxiliar para obtener color del mapa de colores
+  const getColorStyle = (colorName) => {
+    const colorMap = {
+      Amarillo: '#FFD700', Azul: '#0000FF', Beige: '#F5F5DC', Blanco: '#FFFFFF', Bordó: '#800000',
+      Celeste: '#87CEEB', Fucsia: '#FF00FF', Gris: '#808080', Marrón: '#A52A2A', Naranja: '#FFA500',
+      Negro: '#000000', Plata: '#C0C0C0', Rojo: '#FF0000', Rosa: '#FFC0CB', Verde: '#008000',
+      Violeta: '#EE82EE', Transparente: '#FFFFFF', Multicolor: 'linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)'
+    };
+
+    const getFontColor = (hexColor) => {
+      if (!hexColor || hexColor === '#FFFFFF') return '#000000';
+      const r = parseInt(hexColor.substr(1, 2), 16);
+      const g = parseInt(hexColor.substr(3, 2), 16);
+      const b = parseInt(hexColor.substr(5, 2), 16);
+      const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+      return (yiq >= 128) ? '#000000' : '#FFFFFF';
+    };
+
+    return {
+      background: colorName === 'Multicolor' ? colorMap[colorName] : (colorMap[colorName] || '#FFFFFF'),
+      color: getFontColor(colorMap[colorName]),
+      backgroundImage: colorName === 'Multicolor' ? colorMap[colorName] : 'none',
+      textShadow: colorName === 'Transparente' ? '0 0 2px #000' : 'none'
+    };
+  };
+
+  return (
+    <div className="h-[calc(100vh-90px)] overflow-y-auto pr-2">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center sticky top-0 bg-gray-900 z-10 py-2">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Edit3 size={20} />
+            Editar Producto: {currentProduct?.name}
+          </h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setView('list')}
+              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded"
+            >
+              <X size={16} />
+              Cancelar
+            </button>
+            <button
+              onClick={() => deleteProduct(currentProduct)}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-500 px-4 py-2 rounded"
+            >
+              <Trash2 size={16} />
+              Eliminar
+            </button>
+            <button
+              onClick={saveProduct}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 px-4 py-2 rounded"
+            >
+              <Save size={16} />
+              Guardar
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs de edición */}
+        <div className="flex border-b border-gray-700">
           <button
-            onClick={() => setView('list')}
-            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded"
+            onClick={() => setEditActiveTab('general')}
+            className={`px-4 py-2 text-sm font-medium ${
+              editActiveTab === 'general' 
+                ? 'bg-gray-800 border-b-2 border-blue-500' 
+                : 'text-gray-400 hover:bg-gray-800'
+            }`}
           >
-            <X size={16} />
-            Cancelar
+            General
           </button>
           <button
-            onClick={() => deleteProduct(currentProduct)}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-500 px-4 py-2 rounded"
+            onClick={() => setEditActiveTab('variantes')}
+            className={`px-4 py-2 text-sm font-medium ${
+              editActiveTab === 'variantes' 
+                ? 'bg-gray-800 border-b-2 border-blue-500' 
+                : 'text-gray-400 hover:bg-gray-800'
+            }`}
           >
-            <Trash2 size={16} />
-            Eliminar
-          </button>
-          <button
-            onClick={saveProduct}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-500 px-4 py-2 rounded"
-          >
-            <Save size={16} />
-            Guardar
+            Variantes
           </button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Columna izquierda: Datos del producto y variantes */}
-        <div className="space-y-6">
-          {/* Formulario de datos del producto */}
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4">Datos del Producto</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Nombre</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => updateEditForm('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Categorías</label>
-                <input
-                  type="text"
-                  value={editForm.categories}
-                  onChange={(e) => updateEditForm('categories', e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Precio</label>
-                  <input
-                    type="text"
-                    value={editForm.price}
-                    onChange={(e) => updateEditForm('price', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Stock</label>
-                  <input
-                    type="text"
-                    value={editForm.stock}
-                    onChange={(e) => updateEditForm('stock', e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
-                  />
+        {editActiveTab === 'general' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Columna izquierda: Datos del producto */}
+            <div className="space-y-6">
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">Datos del Producto</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Nombre</label>
+                    <textarea
+                      value={editForm.name}
+                      onChange={(e) => updateEditForm('name', e.target.value)}
+                      className="w-full h-[3rem] bg-gray-700 border border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Precio (si no hay variantes)</label>
+                      <input
+                        type="text"
+                        value={editForm.price}
+                        onChange={(e) => updateEditForm('price', e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Stock (si no hay variantes)</label>
+                      <input
+                        type="text"
+                        value={editForm.stock}
+                        onChange={(e) => updateEditForm('stock', e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Variantes del producto */}
-          {editForm.variants && editForm.variants.length > 0 && (
-            <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Variantes del Producto ({editForm.variants.length})</h3>
-              <div className="space-y-3">
-                {editForm.variants.map((variant, index) => {
-                  // Crear descripción de la variante
-                  let variantDescription = '';
-                  if (variant.properties.length > 0) {
-                    variantDescription = variant.properties
-                      .map(prop => `${prop.name}: ${prop.value}`)
-                      .join(', ');
-                  } else {
-                    variantDescription = variant.isMain ? 'Variante principal' : `Variante ${index + 1}`;
-                  }
-                  
-                  return (
-                    <div 
-                      key={index} 
-                      className={`flex items-center justify-between p-3 rounded ${
-                        variant.isMain ? 'bg-blue-900/30 border border-blue-500/30' : 'bg-gray-700'
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
-                            {variantDescription}
+              {/* Categorías */}
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium mb-2">Categorías Activas</h3>
+                  <div className="p-3 bg-gray-700 border border-gray-600 rounded min-h-[50px]">
+                    {selectedCategories.size > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {[...selectedCategories].map(cat => (
+                          <span key={cat} className="bg-blue-600 text-white text-xs font-medium px-2.5 py-1 rounded-full">
+                            {cat}
                           </span>
-                          {variant.isMain && (
-                            <span className="text-xs bg-blue-600 px-2 py-1 rounded">Principal</span>
-                          )}
-                        </div>
-                        {variant.properties.length > 0 && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            {variant.properties.length} propiedades
-                          </div>
-                        )}
+                        ))}
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <label className="text-gray-400">Precio:</label>
-                          <input
-                            type="text"
-                            value={variant.price}
-                            onChange={(e) => updateVariant(index, 'price', e.target.value)}
-                            className="w-20 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-gray-400">Stock:</label>
-                          <input
-                            type="text"
-                            value={variant.stock}
-                            onChange={(e) => updateVariant(index, 'stock', e.target.value)}
-                            className="w-16 px-2 py-1 bg-gray-600 border border-gray-500 rounded text-center"
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {/* Resumen de variantes */}
-              <div className="mt-4 p-3 bg-gray-700/50 rounded text-sm">
-                <div className="grid grid-cols-3 gap-4 text-gray-300">
-                  <div>
-                    <span className="font-medium">Total variantes:</span> {editForm.variants.length}
+                    ) : (
+                      <p className="text-sm text-gray-400">Ninguna categoría seleccionada.</p>
+                    )}
                   </div>
-                  <div>
-                    <span className="font-medium">Con propiedades:</span> {editForm.variants.filter(v => v.properties.length > 0).length}
-                  </div>
-                  <div>
-                    <span className="font-medium">Stock total:</span> {editForm.variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0)}
-                  </div>
+                </div>
+
+                <h3 className="text-lg font-medium mb-2">Todas las Categorías</h3>
+                <div className="max-h-[17rem] overflow-y-auto border border-gray-600 rounded p-4 bg-gray-700">
+                  {config && config.categories && (
+                    <CategoryGroups
+                      categories={config.categories}
+                      selectedCategories={selectedCategories}
+                      onToggleCategory={toggleCategory}
+                    />
+                  )}
                 </div>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Columna derecha: Gestión de imágenes */}
-        <div className="bg-gray-800 p-6 rounded-lg h-fit">
-          <h3 className="text-lg font-semibold mb-4">Imágenes del Producto</h3>
-          <div className="space-y-4">
-            {productImages.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">No hay imágenes disponibles</p>
-            ) : (
-              <div className="overflow-y-auto pr-2">
-                <div className="grid grid-cols-2 gap-3">
-                  {productImages.map(image => (
-                    <div key={image} className="relative group">
-                      <div className="aspect-[3/4] bg-gray-700 rounded-lg overflow-hidden">
-                        <img 
-                          src={window.electronAPI.getLocalImageUrl(
-                            `${workingDirectory}\\procesadas\\${image}`
-                          )}
-                          alt={image}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                        <div className="hidden w-full h-full bg-gray-600 items-center justify-center text-xs text-gray-400">
-                          <div className="text-center">
-                            Error al cargar imagen
+            {/* Columna derecha: Imágenes */}
+            <div className="bg-gray-800 p-6 rounded-lg h-fit">
+              <h3 className="text-lg font-semibold mb-4">Imágenes del Producto</h3>
+              <div className="space-y-4">
+                {productImages.length === 0 ? (
+                  <p className="text-gray-400 text-center py-4">No hay imágenes disponibles</p>
+                ) : (
+                  <div className="overflow-y-auto pr-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      {productImages.map(image => (
+                        <div key={image} className="relative group">
+                          <div className="aspect-[3/4] bg-gray-700 rounded-lg overflow-hidden">
+                            <img 
+                              src={window.electronAPI.getLocalImageUrl(
+                                `${workingDirectory}\\procesadas\\${image}`
+                              )}
+                              alt={image}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                            <div className="hidden w-full h-full bg-gray-600 items-center justify-center text-xs text-gray-400">
+                              <div className="text-center">
+                                Error al cargar imagen
+                              </div>
+                            </div>
                           </div>
+                          <button
+                            onClick={() => deleteImage(image)}
+                            className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X size={12} />
+                          </button>
+                          <p className="text-xs text-gray-400 mt-1 truncate">{image}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editActiveTab === 'variantes' && (
+          <div className="space-y-6">
+            {/* Controles de variantes */}
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4">Variantes del Producto</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Sección de Colores */}
+                  <div className="border border-gray-600 rounded p-3">
+                    <label className="flex items-center gap-2 mb-3">
+                      <input 
+                        type="checkbox" 
+                        checked={useColor} 
+                        onChange={(e) => setUseColor(e.target.checked)} 
+                      />
+                      <span className="font-medium">Color</span>
+                    </label>
+                    {useColor && config?.variants?.colors && (
+                      <div>
+                        <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-900/50 rounded">
+                          {config.variants.colors.map(color => (
+                            <button
+                              key={color}
+                              onClick={() => toggleColor(color)}
+                              className={`px-3 py-1 text-xs font-medium rounded-full border-2 ${
+                                selectedColors.includes(color) ? 'border-cyan-400' : 'border-transparent'
+                              }`}
+                              style={getColorStyle(color)}
+                            >
+                              {color}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={selectAllColors} 
+                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                          >
+                            Todos
+                          </button>
+                          <button 
+                            onClick={clearAllColors} 
+                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                          >
+                            Ninguno
+                          </button>
                         </div>
                       </div>
-                      <button
-                        onClick={() => deleteImage(image)}
-                        className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X size={12} />
-                      </button>
-                      <p className="text-xs text-gray-400 mt-1 truncate">{image}</p>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+
+                  {/* Sección de Talles */}
+                  <div className="border border-gray-600 rounded p-3">
+                    <label className="flex items-center gap-2 mb-3">
+                      <input 
+                        type="checkbox" 
+                        checked={useSize} 
+                        onChange={(e) => setUseSize(e.target.checked)} 
+                      />
+                      <span className="font-medium">Talle</span>
+                    </label>
+                    {useSize && config?.variants?.sizes && (
+                      <div>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {config.variants.sizes.map(size => (
+                            <button
+                              key={size}
+                              onClick={() => toggleSize(size)}
+                              className={`px-3 py-1 text-sm rounded ${
+                                selectedSizes.includes(size) ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={selectAllSizes} 
+                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                          >
+                            Todos
+                          </button>
+                          <button 
+                            onClick={clearAllSizes} 
+                            className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                          >
+                            Ninguno
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Sección de Tipos personalizados */}
+                <div className="border border-gray-600 rounded p-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <input 
+                      type="checkbox" 
+                      checked={useType} 
+                      onChange={(e) => setUseType(e.target.checked)} 
+                    />
+                    <div className="flex-1 relative">
+                      <input 
+                        type="text" 
+                        placeholder="Tipo (ej: Material)" 
+                        value={typeName} 
+                        onChange={(e) => setTypeName(e.target.value)} 
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {useType && (
+                    <div className="flex gap-2">
+                      {/* Columna 1: Input de valores */}
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-400 mb-1">Valores (uno por línea):</label>
+                        <textarea 
+                          placeholder="Valor A&#10;Valor B&#10;Valor C"
+                          value={typeValues} 
+                          onChange={handleTypeValuesChange} 
+                          className="w-full h-24 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">(Un valor por línea)</p>
+                      </div>
+
+                      {/* Columna 2: Tipos predefinidos */}
+                      {config?.variants?.predefinedTypes && (
+                        <div className="w-1/3">
+                          <label className="block text-xs text-gray-400 mb-1">Tipos disponibles:</label>
+                          <div className="h-24 overflow-y-auto border border-gray-600 rounded bg-gray-700">
+                            {(() => {
+                              // Filtrar tipos según el input
+                              const filteredTypes = typeName.trim() === ''
+                                ? config.variants.predefinedTypes
+                                : config.variants.predefinedTypes.filter(pt => 
+                                    pt.name.toLowerCase().includes(typeName.toLowerCase())
+                                  );
+                              
+                              return filteredTypes.map((type, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => selectPredefinedType(type)}
+                                  className="w-full text-left px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+                                >
+                                  {type.name}
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Columna 3: Sugerencias de valores */}
+                      {valueSuggestions.length > 0 && (
+                        <div className="w-1/3">
+                          <label className="block text-xs text-gray-400 mb-1">Sugerencias:</label>
+                          <div className="h-24 overflow-y-auto border border-gray-600 rounded bg-gray-700">
+                            {valueSuggestions.map((suggestion, index) => (
+                              <button
+                                key={index}
+                                onClick={() => selectValueSuggestion(suggestion)}
+                                className="w-full text-left px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+                              >
+                                <div className="font-semibold">{suggestion.value}</div>
+                                <div className="text-xs text-gray-500">{suggestion.type.name}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={generateVariantCombinations} 
+                  className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded"
+                >
+                  Generar Combinaciones
+                </button>
+
+                {/* Lista de combinaciones generadas */}
+                {editVariantCombinations.length > 0 && (
+                  <div className="border border-gray-600 rounded">
+                    <div className="p-3 bg-gray-700 border-b border-gray-600">
+                      <h4 className="font-medium">Combinaciones generadas ({editVariantCombinations.length})</h4>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {editVariantCombinations.map((variant, index) => (
+                        <div key={variant.id} className="p-3 border-b border-gray-700 last:border-b-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">{index + 1}. </span>
+                              {variant.properties.map((prop, i) => (
+                                <span key={i} className="text-sm">
+                                  {prop.value && `${prop.name}: ${prop.value}`}
+                                  {prop.value && i < variant.properties.length - 1 && variant.properties[i + 1].value && ' + '}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              <span className="text-sm">$</span>
+                              <input 
+                                type="text" 
+                                value={variant.price} 
+                                onChange={(e) => updateVariantPrice(variant.id, e.target.value)} 
+                                className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500"
+                              />
+                              <span className="text-sm ml-2">Stock:</span>
+                              <input 
+                                type="text" 
+                                value={variant.stock} 
+                                onChange={(e) => updateVariantStock(variant.id, e.target.value)} 
+                                className="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ProductsTab = ({ setActiveTab }) => {
   // Estados principales
@@ -520,6 +776,19 @@ const ProductsTab = ({ setActiveTab }) => {
   const [productImages, setProductImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [imageDataCache, setImageDataCache] = useState(new Map());
+
+  // Estados para edición de variantes
+  const [selectedCategories, setSelectedCategories] = useState(new Set());
+  const [useColor, setUseColor] = useState(false);
+  const [useSize, setUseSize] = useState(false);
+  const [useType, setUseType] = useState(false);
+  const [selectedColors, setSelectedColors] = useState([]);
+  const [selectedSizes, setSelectedSizes] = useState([]);
+  const [typeName, setTypeName] = useState('');
+  const [typeValues, setTypeValues] = useState('');
+  const [editVariantCombinations, setEditVariantCombinations] = useState([]);
+  const [editActiveTab, setEditActiveTab] = useState('general'); // 'general' o 'variantes'
+  const [valueSuggestions, setValueSuggestions] = useState([]);
 
   // Función para actualizar formulario con useCallback para evitar re-renders
   const updateEditForm = useCallback((field, value) => {
@@ -794,6 +1063,8 @@ const ProductsTab = ({ setActiveTab }) => {
   // Función para editar producto
   const editProduct = async (product) => {
     setCurrentProduct(product);
+    
+    // Configurar formulario básico
     setEditForm({
       name: product.name,
       categories: product.categories,
@@ -801,6 +1072,17 @@ const ProductsTab = ({ setActiveTab }) => {
       stock: product.stock,
       variants: [...product.variants]
     });
+    
+    // Configurar categorías seleccionadas
+    const categoriesArray = product.categories ? product.categories.split(',').map(c => c.trim()) : [];
+    setSelectedCategories(new Set(categoriesArray));
+    
+    // Analizar variantes para configurar los controles de variación
+    if (product.variants && product.variants.length > 0) {
+      analyzeVariantsForEditing(product.variants);
+    } else {
+      resetVariantControls();
+    }
     
     // Cargar imágenes del producto
     if (workingDirectory) {
@@ -817,25 +1099,73 @@ const ProductsTab = ({ setActiveTab }) => {
     try {
       setLoading(true);
       
+      // Formatear precio correctamente
+      const formattedPrice = formatPrice(editForm.price);
+      
+      // Preparar variantes con precios formateados
+      let formattedVariants = [];
+      
+      // Prioridad: 
+      // 1. Si se han generado nuevas combinaciones, usar esas
+      // 2. Si no hay nuevas combinaciones pero hay controles activos, usar las variantes del formulario
+      // 3. Si no hay controles activos, crear una variante base
+      
+      if (editVariantCombinations.length > 0) {
+        // Si hay nuevas combinaciones generadas - formatear precios solo al guardar
+        formattedVariants = editVariantCombinations.map(variant => ({
+          properties: variant.properties || [],
+          price: formatPrice(variant.price),
+          stock: variant.stock || '0'
+        }));
+      } else if ((useColor || useSize || useType) && editForm.variants && editForm.variants.length > 0) {
+        // Si hay controles de variantes activos y variantes en el formulario - formatear precios solo al guardar
+        formattedVariants = editForm.variants.map(variant => ({
+          properties: variant.properties || [],
+          price: formatPrice(variant.price || editForm.price),
+          stock: variant.stock || '0'
+        }));
+      } else {
+        // Si no hay variantes específicas, crear una variante base
+        formattedVariants = [{
+          properties: [],
+          price: formattedPrice,
+          stock: editForm.stock || '0'
+        }];
+      }
+      
+      // Preparar datos del formulario antes de guardar
+      const formDataToSave = {
+        name: editForm.name,
+        categories: [...selectedCategories].join(', '), // Actualizar categorías desde selectedCategories
+        price: formattedPrice, // Precio principal formateado
+        stock: editForm.stock,
+        variants: formattedVariants
+      };
+      
       // Actualizar producto en CSV
       const result = await window.electronAPI.updateProductInCsv(
         workingDirectory, 
         currentProduct.id, 
-        editForm
+        formDataToSave
       );
       
       if (result.success) {
         // Actualizar estado local
         const updatedProducts = products.map(p => 
           p.id === currentProduct.id 
-            ? { ...p, ...editForm }
+            ? { ...p, ...formDataToSave }
             : p
         );
         
         setProducts(updatedProducts);
         setView('list');
         setCurrentProduct(null);
+        
+        // Resetear estados de edición
+        resetVariantControls();
+        setEditActiveTab('general');
       } else {
+        console.error('Error del servidor:', result.error);
         alert(`Error al guardar producto: ${result.error}`);
       }
       
@@ -944,6 +1274,336 @@ const ProductsTab = ({ setActiveTab }) => {
     }
   };
 
+  // Funciones auxiliares para manejo de variantes
+  const resetVariantControls = () => {
+    setUseColor(false);
+    setUseSize(false);
+    setUseType(false);
+    setSelectedColors([]);
+    setSelectedSizes([]);
+    setTypeName('');
+    setTypeValues('');
+    setEditVariantCombinations([]);
+  };
+
+  const analyzeVariantsForEditing = (variants) => {
+    if (!variants || variants.length === 0) {
+      resetVariantControls();
+      return;
+    }
+
+    // Resetear controles
+    resetVariantControls();
+
+    // Analizar propiedades de las variantes
+    const colorsSet = new Set();
+    const sizesSet = new Set();
+    const typesMap = new Map();
+
+    variants.forEach(variant => {
+      variant.properties.forEach(prop => {
+        if (prop.name === 'Color') {
+          colorsSet.add(prop.value);
+        } else if (prop.name === 'Talle') {
+          sizesSet.add(prop.value);
+        } else {
+          // Otros tipos
+          if (!typesMap.has(prop.name)) {
+            typesMap.set(prop.name, new Set());
+          }
+          typesMap.get(prop.name).add(prop.value);
+        }
+      });
+    });
+
+    // Configurar colores
+    if (colorsSet.size > 0) {
+      setUseColor(true);
+      setSelectedColors([...colorsSet]);
+    }
+
+    // Configurar talles
+    if (sizesSet.size > 0) {
+      setUseSize(true);
+      setSelectedSizes([...sizesSet]);
+    }
+
+    // Configurar tipos personalizados
+    if (typesMap.size > 0) {
+      const [firstTypeName, firstTypeValues] = typesMap.entries().next().value;
+      setUseType(true);
+      setTypeName(firstTypeName);
+      setTypeValues([...firstTypeValues].join('\n'));
+    }
+
+    // Convertir variantes al formato de edición
+    const convertedVariants = variants.map((variant, index) => ({
+      id: index,
+      properties: variant.properties,
+      price: variant.price || '0',
+      stock: variant.stock || '10'
+    }));
+
+    setEditVariantCombinations(convertedVariants);
+  };
+
+  // Toggle de categorías
+  const toggleCategory = (category) => {
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+
+    // Actualizar editForm con las categorías seleccionadas
+    const categoriesStr = [...selectedCategories].join(', ');
+    setEditForm(prev => ({ ...prev, categories: categoriesStr }));
+  };
+
+  // Toggle de colores
+  const toggleColor = (color) => {
+    setSelectedColors(prev =>
+      prev.includes(color)
+        ? prev.filter(c => c !== color)
+        : [...prev, color]
+    );
+  };
+
+  // Toggle de talles
+  const toggleSize = (size) => {
+    setSelectedSizes(prev =>
+      prev.includes(size)
+        ? prev.filter(s => s !== size)
+        : [...prev, size]
+    );
+  };
+
+  // Seleccionar/limpiar todos los colores
+  const selectAllColors = () => {
+    if (config && config.variants && config.variants.colors) {
+      setSelectedColors([...config.variants.colors]);
+    }
+  };
+
+  const clearAllColors = () => {
+    setSelectedColors([]);
+  };
+
+  // Seleccionar/limpiar todos los talles
+  const selectAllSizes = () => {
+    if (config && config.variants && config.variants.sizes) {
+      setSelectedSizes([...config.variants.sizes]);
+    }
+  };
+
+  const clearAllSizes = () => {
+    setSelectedSizes([]);
+  };
+
+  // Generar combinaciones de variantes
+  const generateVariantCombinations = () => {
+    const properties = [];
+    const propertyNames = [];
+
+    if (useColor && selectedColors.length > 0) {
+      properties.push(selectedColors);
+      propertyNames.push("Color");
+    }
+
+    if (useSize && selectedSizes.length > 0) {
+      properties.push(selectedSizes);
+      propertyNames.push("Talle");
+    }
+
+    if (useType && typeValues.trim()) {
+      const values = typeValues.split('\n').map(v => v.trim()).filter(Boolean);
+      if (values.length > 0) {
+        properties.push(values);
+        propertyNames.push(typeName || "Tipo");
+      }
+    }
+
+    if (properties.length === 0) {
+      setEditVariantCombinations([]);
+      setEditForm(prev => ({ ...prev, variants: [] }));
+      return;
+    }
+
+    const combinations = [];
+    const generateCombos = (current, remaining) => {
+      if (remaining.length === 0) {
+        combinations.push([...current]);
+        return;
+      }
+
+      const [firstProperty, ...restProperties] = remaining;
+      for (const value of firstProperty) {
+        generateCombos([...current, value], restProperties);
+      }
+    };
+
+    generateCombos([], properties);
+
+    const variantData = combinations.map((combo, index) => ({
+      id: index,
+      properties: propertyNames.map((name, i) => ({
+        name,
+        value: combo[i] || ''
+      })),
+      price: editForm.price || '0', // No formatear aquí, usar el precio tal como está
+      stock: '10'
+    }));
+
+    setEditVariantCombinations(variantData);
+    
+    // Actualizar editForm con las nuevas variantes
+    const formattedVariants = variantData.map(variant => ({
+      properties: variant.properties,
+      price: variant.price,
+      stock: variant.stock
+    }));
+    
+    setEditForm(prev => ({ ...prev, variants: formattedVariants }));
+  };
+
+  // Actualizar precio de variante
+  const updateVariantPrice = (variantId, price) => {
+    // No formatear inmediatamente, solo almacenar el valor tal como lo escribe el usuario
+    setEditVariantCombinations(prev =>
+      prev.map(v => v.id === variantId ? { ...v, price } : v)
+    );
+    
+    // Actualizar también en editForm
+    setEditForm(prev => {
+      const updatedVariants = [...prev.variants];
+      if (updatedVariants[variantId]) {
+        updatedVariants[variantId].price = price;
+      }
+      return { ...prev, variants: updatedVariants };
+    });
+  };
+
+  // Actualizar stock de variante
+  const updateVariantStock = (variantId, stock) => {
+    setEditVariantCombinations(prev =>
+      prev.map(v => v.id === variantId ? { ...v, stock } : v)
+    );
+    
+    // Actualizar también en editForm
+    setEditForm(prev => {
+      const updatedVariants = [...prev.variants];
+      if (updatedVariants[variantId]) {
+        updatedVariants[variantId].stock = stock;
+      }
+      return { ...prev, variants: updatedVariants };
+    });
+  };
+
+  // Función para formatear precio correctamente
+  const formatPrice = (priceInput) => {
+    if (!priceInput) return '0.00';
+    
+    // Remover todo lo que no sea número o coma/punto
+    let cleanPrice = priceInput.toString().replace(/[^\d,.]/g, '');
+    
+    // Si está vacío, retornar 0.00
+    if (!cleanPrice) return '0.00';
+    
+    // Convertir a número para procesamiento
+    let numberValue;
+    
+    // Si contiene tanto coma como punto, asumir que el último es decimal
+    if (cleanPrice.includes(',') && cleanPrice.includes('.')) {
+      const lastComma = cleanPrice.lastIndexOf(',');
+      const lastDot = cleanPrice.lastIndexOf('.');
+      
+      if (lastDot > lastComma) {
+        // Punto es decimal, coma es separador de miles
+        numberValue = parseFloat(cleanPrice.replace(/,/g, ''));
+      } else {
+        // Coma es decimal, punto es separador de miles  
+        numberValue = parseFloat(cleanPrice.replace(/\./g, '').replace(',', '.'));
+      }
+    } else if (cleanPrice.includes(',')) {
+      // Solo comas - puede ser decimal o separador de miles
+      const commaCount = (cleanPrice.match(/,/g) || []).length;
+      if (commaCount === 1 && cleanPrice.indexOf(',') > cleanPrice.length - 4) {
+        // Probablemente decimal (coma cerca del final)
+        numberValue = parseFloat(cleanPrice.replace(',', '.'));
+      } else {
+        // Probablemente separador de miles
+        numberValue = parseFloat(cleanPrice.replace(/,/g, ''));
+      }
+    } else if (cleanPrice.includes('.')) {
+      // Solo puntos - puede ser decimal o separador de miles
+      const dotCount = (cleanPrice.match(/\./g) || []).length;
+      if (dotCount === 1 && cleanPrice.indexOf('.') > cleanPrice.length - 4) {
+        // Probablemente decimal (punto cerca del final)
+        numberValue = parseFloat(cleanPrice);
+      } else {
+        // Probablemente separador de miles
+        numberValue = parseFloat(cleanPrice.replace(/\./g, ''));
+      }
+    } else {
+      // Solo números
+      numberValue = parseFloat(cleanPrice);
+    }
+    
+    // Si no es un número válido, retornar 0.00
+    if (isNaN(numberValue)) return '0.00';
+    
+    // Formatear como número con coma para miles y punto para decimales (formato americano/internacional)
+    return numberValue.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  // Función para manejar cambios en el textarea de valores y mostrar sugerencias
+  const handleTypeValuesChange = (e) => {
+    const currentValue = e.target.value;
+    setTypeValues(currentValue);
+
+    if (currentValue.trim() === '' || currentValue.includes('\n')) {
+      setValueSuggestions([]);
+      return;
+    }
+
+    const suggestions = [];
+    const predefinedTypes = config?.variants?.predefinedTypes || [];
+    predefinedTypes.forEach(type => {
+      if (type?.values && Array.isArray(type.values)) {
+        type.values.forEach(value => {
+          if (value.toLowerCase().includes(currentValue.toLowerCase())) {
+            suggestions.push({ value, type });
+          }
+        });
+      }
+    });
+    setValueSuggestions(suggestions.slice(0, 10)); // Limitar a 10 sugerencias
+  };
+
+  // Función para seleccionar tipo predefinido
+  const selectPredefinedType = (type) => {
+    setTypeName(type.name);
+    if (Array.isArray(type.values)) {
+      setTypeValues(type.values.join('\n'));
+    } else {
+      setTypeValues('');
+    }
+    setValueSuggestions([]);
+  };
+
+  // Función para seleccionar sugerencia de valor
+  const selectValueSuggestion = (suggestion) => {
+    setTypeValues(suggestion.value);
+    setValueSuggestions([]);
+  };
+
   // Filtrar productos según término de búsqueda
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1022,6 +1682,37 @@ const ProductsTab = ({ setActiveTab }) => {
               productImages={productImages}
               workingDirectory={workingDirectory}
               deleteImage={deleteImage}
+              config={config}
+              selectedCategories={selectedCategories}
+              toggleCategory={toggleCategory}
+              editActiveTab={editActiveTab}
+              setEditActiveTab={setEditActiveTab}
+              useColor={useColor}
+              setUseColor={setUseColor}
+              useSize={useSize}
+              setUseSize={setUseSize}
+              useType={useType}
+              setUseType={setUseType}
+              selectedColors={selectedColors}
+              selectedSizes={selectedSizes}
+              typeName={typeName}
+              setTypeName={setTypeName}
+              typeValues={typeValues}
+              setTypeValues={setTypeValues}
+              editVariantCombinations={editVariantCombinations}
+              toggleColor={toggleColor}
+              toggleSize={toggleSize}
+              selectAllColors={selectAllColors}
+              clearAllColors={clearAllColors}
+              selectAllSizes={selectAllSizes}
+              clearAllSizes={clearAllSizes}
+              generateVariantCombinations={generateVariantCombinations}
+              updateVariantPrice={updateVariantPrice}
+              updateVariantStock={updateVariantStock}
+              valueSuggestions={valueSuggestions}
+              handleTypeValuesChange={handleTypeValuesChange}
+              selectPredefinedType={selectPredefinedType}
+              selectValueSuggestion={selectValueSuggestion}
             />
           )}
           {view === 'deleted' && (

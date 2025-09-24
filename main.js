@@ -1224,6 +1224,10 @@ ipcMain.handle('read-products-from-csv', async (event, directoryPath) => {
 // Handler para actualizar producto en salida.csv específico del proyecto
 ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, updatedData) => {
   try {
+    console.log('=== UPDATE PRODUCT IN CSV ===');
+    console.log('Product ID:', productId);
+    console.log('Updated Data:', JSON.stringify(updatedData, null, 2));
+    
     const csvPath = path.join(directoryPath, 'salida.csv');
     const backupPath = path.join(directoryPath, 'salida_backup.csv');
     
@@ -1240,16 +1244,23 @@ ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, 
         skipEmptyLines: true,
         complete: async (results) => {
           try {
+            console.log('CSV Headers:', results.meta.fields);
             let variantIndex = 0;
             
             // Filtrar filas vacías antes de procesar
             const filteredData = results.data.filter(rowHasContent);
+            console.log('Total rows to process:', filteredData.length);
             
             // Actualizar las filas que corresponden al producto
-            const processedData = filteredData.map(row => {
+            const processedData = filteredData.map((row, rowIndex) => {
               const urlId = row['Identificador de URL'] || '';
               
               if (urlId === productId) {
+                console.log(`Row ${rowIndex} matches product ${productId}`);
+                console.log('Processing row for product:', productId);
+                console.log('Row data:', Object.keys(row));
+                console.log('Variant index:', variantIndex);
+                
                 // Actualizar la fila principal (que tiene nombre)
                 if (row['Nombre'] && row['Nombre'].trim()) {
                   const updatedRow = {
@@ -1261,8 +1272,24 @@ ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, 
                   // Actualizar precio y stock de la variante correspondiente si existe
                   if (updatedData.variants && updatedData.variants[variantIndex]) {
                     const variant = updatedData.variants[variantIndex];
+                    console.log('Updating main row variant:', variantIndex, variant);
                     updatedRow['Precio'] = variant.price || row['Precio'];
                     updatedRow['Stock'] = variant.stock || row['Stock'];
+                    
+                    // Actualizar propiedades de la variante (hasta 3 propiedades)
+                    for (let i = 1; i <= 3; i++) {
+                      const propNameKey = `Nombre de propiedad ${i}`;
+                      const propValueKey = `Valor de propiedad ${i}`;
+                      
+                      if (variant.properties && variant.properties[i-1]) {
+                        console.log(`Setting property ${i}:`, variant.properties[i-1]);
+                        updatedRow[propNameKey] = variant.properties[i-1].name || '';
+                        updatedRow[propValueKey] = variant.properties[i-1].value || '';
+                      } else {
+                        updatedRow[propNameKey] = '';
+                        updatedRow[propValueKey] = '';
+                      }
+                    }
                   }
                   
                   variantIndex++;
@@ -1275,6 +1302,20 @@ ipcMain.handle('update-product-in-csv', async (event, directoryPath, productId, 
                     const variant = updatedData.variants[variantIndex];
                     updatedRow['Precio'] = variant.price || row['Precio'];
                     updatedRow['Stock'] = variant.stock || row['Stock'];
+                    
+                    // Actualizar propiedades de la variante (hasta 3 propiedades)
+                    for (let i = 1; i <= 3; i++) {
+                      const propNameKey = `Nombre de propiedad ${i}`;
+                      const propValueKey = `Valor de propiedad ${i}`;
+                      
+                      if (variant.properties && variant.properties[i-1]) {
+                        updatedRow[propNameKey] = variant.properties[i-1].name || '';
+                        updatedRow[propValueKey] = variant.properties[i-1].value || '';
+                      } else {
+                        updatedRow[propNameKey] = '';
+                        updatedRow[propValueKey] = '';
+                      }
+                    }
                   }
                   
                   variantIndex++;
