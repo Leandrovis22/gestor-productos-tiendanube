@@ -192,25 +192,25 @@ ipcMain.handle('read-config', async (event, directoryPath) => {
       console.warn(`Config file not found at ${configPath}. Creating a new one with default values.`);
       const defaultConfig = {
         "categories": [
-          "Plata > Conjuntos", "Plata > Cadenas", "Plata > Dijes", "Plata > Aros > Argollas",
+          "Plata > Conjunto Dijes Cadenas", "Plata > Cadenas", "Plata > Dijes", "Plata > Aros > Argollas",
           "Plata > Aros > Aros Pasantes", "Plata > Aros > Abridores", "Plata > Anillos",
           "Plata > Anillos > Alianzas", "Plata > Pulseras", "Plata > Esclavas",
-          "Acero > Acero Blanco > Conjuntos", "Acero > Acero Blanco > Cadenas",
+          "Acero > Acero Blanco > Conjunto Dijes Cadenas", "Acero > Acero Blanco > Cadenas",
           "Acero > Acero Blanco > Dijes", "Acero > Acero Blanco > Aros > Argollas",
           "Acero > Acero Blanco > Aros > Aros Pasantes", "Acero > Acero Blanco > Aros > Abridores",
           "Acero > Acero Blanco > Aros > Cuff", "Acero > Acero Blanco > Anillos",
           "Acero > Acero Blanco > Anillos > Alianzas", "Acero > Acero Blanco > Pulseras",
-          "Acero > Acero Blanco > Esclavas", "Acero > Acero Quirúrgico > Conjuntos",
+          "Acero > Acero Blanco > Esclavas", "Acero > Acero Quirúrgico > Conjunto Dijes Cadenas",
           "Acero > Acero Quirúrgico > Cadenas", "Acero > Acero Quirúrgico > Dijes",
           "Acero > Acero Quirúrgico > Aros > Argollas", "Acero > Acero Quirúrgico > Aros > Aros Pasantes",
           "Acero > Acero Quirúrgico > Aros > Abridores", "Acero > Acero Quirúrgico > Aros > Cuff", "Acero > Acero Quirúrgico > Anillos",
           "Acero > Acero Quirúrgico > Anillos > Alianzas", "Acero > Acero Quirúrgico > Pulseras",
-          "Acero > Acero Quirúrgico > Esclavas", "Acero > Acero Dorado > Conjuntos",
+          "Acero > Acero Quirúrgico > Esclavas", "Acero > Acero Dorado > Conjunto Dijes Cadenas",
           "Acero > Acero Dorado > Cadenas", "Acero > Acero Dorado > Dijes",
           "Acero > Acero Dorado > Aros > Argollas", "Acero > Acero Dorado > Aros > Aros Pasantes",
           "Acero > Acero Dorado > Aros > Abridores", "Acero > Acero Dorado > Aros > Cuff", "Acero > Acero Dorado > Anillos",
           "Acero > Acero Dorado > Anillos > Alianzas", "Acero > Acero Dorado > Pulseras",
-          "Acero > Acero Dorado > Esclavas", "Alhajero", "Cristal", "Pulseras"
+          "Acero > Acero Dorado > Esclavas", "Alhajero", "Strass", "Pulseras"
         ],
         "variants": {
           "colors": [
