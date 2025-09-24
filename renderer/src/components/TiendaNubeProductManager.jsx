@@ -336,18 +336,7 @@ const TiendaNubeProductManager = () => {
   if (activeTab === 'productos') {
     return (
       <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-        <div className="bg-gray-800 p-4 border-b border-gray-700">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Gestor de Productos TiendaNube</h1>
-            <button 
-              onClick={() => setActiveTab('general')} 
-              className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded"
-            >
-              Volver al Editor
-            </button>
-          </div>
-        </div>
-        <ProductsTab />
+        <ProductsTab setActiveTab={setActiveTab} />
       </div>
     );
   }
