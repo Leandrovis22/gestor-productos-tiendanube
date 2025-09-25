@@ -233,19 +233,23 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       </div>
 
       <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+        <div className="grid grid-cols-9 gap-4">
           {imagesInDirectory.map(imageName => (
             <div
               key={imageName}
               className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${getBorderColor(imageName)}`}
               onClick={() => toggleImageSelection(imageName)}
             >
-              <LazyImage
-                imagePath={getImagePath(imageName)}
-                alt={imageName}
-                className="w-full h-32 object-cover"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate">{imageName}</div>
+              <div className="w-full aspect-[3/4] bg-gray-700 flex items-center justify-center">
+                <LazyImage
+                  imagePath={getImagePath(imageName)}
+                  alt={imageName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white text-xs p-1">
+                <div className="break-all">{imageName}</div>
+              </div>
               {selectedImages.includes(imageName) && (
                 <div className="absolute top-1 right-1">
                   <button
@@ -287,11 +291,13 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                         } w-[30rem]`}
                     >
                       <div className="flex-shrink-0">
-                        <LazyImage
-                          imagePath={getImagePath(group.imageName)}
-                          alt={group.imageName}
-                          className="w-[10rem] h-[13rem] object-cover rounded-md"
-                        />
+                        <div className="w-[10rem] aspect-[3/4] bg-gray-700 flex items-center justify-center">
+                          <LazyImage
+                            imagePath={getImagePath(group.imageName)}
+                            alt={group.imageName}
+                            className="w-full h-full object-cover rounded-md"
+                          />
+                        </div>
                       </div>
 
                       <div className="flex-1 min-w-0">

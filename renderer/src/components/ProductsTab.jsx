@@ -98,8 +98,8 @@ const ListView = ({
     </div>
 
     {/* Lista de productos */}
-    <div className="h-[calc(100vh-147px)] overflow-y-auto pr-2">
-      <div className="grid grid-cols-8 gap-4">
+    <div className="h-[calc(100vh-70px)] overflow-y-auto pr-2">
+      <div className="grid grid-cols-9 gap-4">
         {loading ? (
           <div className="col-span-full text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
@@ -1646,7 +1646,7 @@ const ProductsTab = ({ setActiveTab }) => {
 
   // Renderizado principal
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-gray-900 text-white p-1">
       {!workingDirectory ? (
         <DirectorySelector 
           selectWorkingDirectory={selectWorkingDirectory}
