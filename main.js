@@ -558,7 +558,24 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
     }
 
     const csvRows = rows.map(row => row.join(';')).join('\n') + '\n';
-    await fs.appendFile(csvPath, csvRows, 'latin1');
+    
+    // Verificar si el archivo existe y si la última línea termina correctamente
+    let dataToAppend = csvRows;
+    try {
+      const fileExists = await fs.access(csvPath).then(() => true).catch(() => false);
+      if (fileExists) {
+        // Leer el contenido actual para verificar si termina con salto de línea
+        const existingContent = await fs.readFile(csvPath, 'latin1');
+        if (existingContent.length > 0 && !existingContent.endsWith('\n')) {
+          // Si no termina con salto de línea, agregamos uno antes de los nuevos datos
+          dataToAppend = '\n' + csvRows;
+        }
+      }
+    } catch (error) {
+      console.warn('Warning: Could not check file ending, proceeding with normal append');
+    }
+    
+    await fs.appendFile(csvPath, dataToAppend, 'latin1');
 
     return { success: true, urlId }; // <-- Devolvemos la urlId generada
   } catch (error) {
