@@ -16,12 +16,20 @@ import {
 import { CategoryGroups } from './CategoryGroups';
 
 // Componente de selección de directorio (fuera del componente principal)
-const DirectorySelector = ({ selectWorkingDirectory, workingDirectory }) => (
+const DirectorySelector = ({ selectWorkingDirectory, workingDirectory, setActiveTab }) => (
   <div className="bg-gray-800 p-6 rounded-lg mb-6">
-    <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-      <Package size={20} />
-      Gestión de Productos
-    </h2>
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xl font-semibold flex items-center gap-2">
+        <Package size={20} />
+        Gestión de Productos
+      </h2>
+      <button
+        onClick={() => setActiveTab('general')}
+        className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded text-sm"
+      >
+        Volver al Editor
+      </button>
+    </div>
     <div className="flex items-center gap-4">
       <button
         onClick={selectWorkingDirectory}
@@ -44,15 +52,11 @@ const ListView = ({
   searchTerm, 
   setSearchTerm, 
   filteredProducts, 
-  currentPage, 
-  totalPages, 
-  currentProducts, 
   loading, 
   setActiveTab, 
   setView, 
   editProduct, 
-  workingDirectory,
-  setCurrentPage 
+  workingDirectory
 }) => (
   <div className="space-y-4">
     {/* Controles superiores */}
@@ -69,7 +73,7 @@ const ListView = ({
           />
         </div>
         <span className="text-gray-400 text-sm">
-          {filteredProducts.length} productos total - Página {currentPage} de {totalPages}
+          {filteredProducts.length} productos total
         </span>
       </div>
       
@@ -105,21 +109,21 @@ const ListView = ({
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
             <p className="mt-2 text-gray-400">Cargando productos...</p>
           </div>
-        ) : currentProducts.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="col-span-full text-center py-8 text-gray-400">
             <Package size={48} className="mx-auto mb-4 opacity-50" />
             <p>No hay productos disponibles</p>
             <p className="text-sm">Selecciona una carpeta de trabajo para comenzar</p>
           </div>
         ) : (
-          currentProducts.map(product => (
+          filteredProducts.map(product => (
             <div 
               key={product.id} 
               className="relative border-4 border-gray-600 hover:border-blue-500 rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:scale-105"
               onClick={() => editProduct(product)}
             >
               {/* Imagen del producto */}
-              <div className="w-full aspect-[3/4] bg-gray-700 flex items-center justify-center">
+              <div className="w-full aspect-[3/4] bg-gray-700 flex items-center justify-center relative">
                 {product.images?.length > 0 ? (
                   <img 
                     src={window.electronAPI.getLocalImageUrl(
@@ -140,83 +144,37 @@ const ListView = ({
                 >
                   <Image size={24} className="text-gray-500" />
                 </div>
+
+                {/* Información superpuesta - solo fotos, variantes y precio */}
+                <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-70 text-white p-[0.3rem]">
+                  <div className="flex items-center justify-between text-xs text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1">
+                        <Image size={12} />
+                        {product.images?.length || 0}
+                      </span>
+                      <span className="text-gray-400">•</span>
+                      <span className="flex items-center gap-1">
+                        <Package size={12} />
+                        {product.variants?.length || 0}
+                      </span>
+                    </div>
+                    <span>${Math.floor(parseFloat((product.price || '0').replace(/,/g, ''))).toLocaleString('es-AR')}</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Información del producto */}
-              <div className="bg-black bg-opacity-75 text-white p-2 min-h-[60px]">
-                <h3 className="font-semibold text-xs mb-1 leading-tight" title={product.name}>
+              {/* Información del producto - nombre abajo */}
+              <div className="bg-black bg-opacity-75 text-white p-[0.3rem]  min-h-[54.6px]">
+                <h3 className="font-semibold text-xs leading-tight" title={product.name}>
                   {product.name}
                 </h3>
-                <div className="flex items-center justify-between text-xs text-gray-300">
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1">
-                      <Image size={12} />
-                      {product.images?.length || 0}
-                    </span>
-                    <span className="text-gray-400">•</span>
-                    <span className="flex items-center gap-1">
-                      <Package size={12} />
-                      {product.variants?.length || 0}
-                    </span>
-                  </div>
-                  <span>${Math.floor(parseFloat((product.price || '0').replace(/,/g, ''))).toLocaleString('es-AR')}</span>
-                </div>
               </div>
             </div>
           ))
         )}
       </div>
     </div>
-
-    {/* Controles de paginación */}
-    {totalPages > 1 && (
-      <div className="flex justify-center items-center gap-4 mt-4">
-        <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-          disabled={currentPage === 1}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded"
-        >
-          Anterior
-        </button>
-        
-        <div className="flex items-center gap-2">
-          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-            let pageNumber;
-            if (totalPages <= 5) {
-              pageNumber = i + 1;
-            } else if (currentPage <= 3) {
-              pageNumber = i + 1;
-            } else if (currentPage >= totalPages - 2) {
-              pageNumber = totalPages - 4 + i;
-            } else {
-              pageNumber = currentPage - 2 + i;
-            }
-            
-            return (
-              <button
-                key={pageNumber}
-                onClick={() => setCurrentPage(pageNumber)}
-                className={`w-10 h-10 rounded ${
-                  currentPage === pageNumber
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                }`}
-              >
-                {pageNumber}
-              </button>
-            );
-          })}
-        </div>
-        
-        <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-          disabled={currentPage === totalPages}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded"
-        >
-          Siguiente
-        </button>
-      </div>
-    )}
   </div>
 );
 
@@ -456,7 +414,7 @@ const EditView = ({
                 </div>
 
                 <h3 className="text-lg font-medium mb-2">Todas las Categorías</h3>
-                <div className="max-h-[17rem] overflow-y-auto border border-gray-600 rounded p-4 bg-gray-700">
+                <div className="max-h-[20rem] overflow-y-auto border border-gray-600 rounded p-4 bg-gray-700">
                   {config && config.categories && (
                     <CategoryGroups
                       categories={config.categories}
@@ -759,10 +717,6 @@ const ProductsTab = ({ setActiveTab }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [config, setConfig] = useState(null);
 
-  // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 72;
-
   // Estados del formulario de edición
   const [editForm, setEditForm] = useState({
     name: '',
@@ -937,11 +891,6 @@ const ProductsTab = ({ setActiveTab }) => {
         
         const productsArray = Array.from(productMap.values());
         setProducts(productsArray);
-        
-        // Cargar datos de imagen solo para productos visibles en la página actual
-        const startIndex = (currentPage - 1) * productsPerPage;
-        const endIndex = startIndex + productsPerPage;
-        const visibleProducts = productsArray.slice(startIndex, endIndex);
         
         // Ya no necesitamos cargar imágenes en base64, usaremos protocolo local-image://
       }
@@ -1610,33 +1559,6 @@ const ProductsTab = ({ setActiveTab }) => {
     product.categories.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calcular paginación
-  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
-  const startIndex = (currentPage - 1) * productsPerPage;
-  const endIndex = startIndex + productsPerPage;
-  const currentProducts = filteredProducts.slice(startIndex, endIndex);
-
-  // Resetear página cuando cambia el término de búsqueda
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
-  // Cargar imágenes cuando cambia la página - Ya no necesario con protocolo local-image://
-  // useEffect(() => {
-  //   if (workingDirectory && currentProducts.length > 0) {
-  //     const visibleImages = [];
-  //     currentProducts.forEach(product => {
-  //       if (product.images && product.images.length > 0) {
-  //         visibleImages.push(product.images[0]);
-  //       }
-  //     });
-      
-  //     if (visibleImages.length > 0) {
-  //       loadImageDataForFiles([...new Set(visibleImages)], workingDirectory);
-  //     }
-  //   }
-  // }, [currentPage, currentProducts.length]);
-
   // Cargar productos eliminados cuando se cambia a esa vista
   useEffect(() => {
     if (view === 'deleted') {
@@ -1651,6 +1573,7 @@ const ProductsTab = ({ setActiveTab }) => {
         <DirectorySelector 
           selectWorkingDirectory={selectWorkingDirectory}
           workingDirectory={workingDirectory}
+          setActiveTab={setActiveTab}
         />
       ) : (
         <div className="space-y-6">
@@ -1659,15 +1582,11 @@ const ProductsTab = ({ setActiveTab }) => {
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               filteredProducts={filteredProducts}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              currentProducts={currentProducts}
               loading={loading}
               setActiveTab={setActiveTab}
               setView={setView}
               editProduct={editProduct}
               workingDirectory={workingDirectory}
-              setCurrentPage={setCurrentPage}
             />
           )}
           {view === 'edit' && (

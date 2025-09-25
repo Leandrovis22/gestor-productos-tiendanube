@@ -168,10 +168,10 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       // 4. Update local state
       // Solo eliminar las imágenes secundarias, mantener el producto principal
       setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
-      
+
       // Agregar el producto principal al set de productos principales existentes
       setExistingPrimaryImages(prev => new Set([...prev, primaryImage]));
-      
+
       setSelectedImages([]);
       setPrimaryImage(null);
       setSelectedPropertyGroup(null); // This is correct
@@ -204,9 +204,8 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
   const propertyGroups = getUniquePropertyGroups();
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Combinar Productos</h2>
-      <div className="mb-4 flex gap-4">
+    <div className="p-1">
+      <div className="mb-2 flex gap-4">
         <button onClick={selectAllImages} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">
           Seleccionar Todo
         </button>
@@ -232,7 +231,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
         )}
       </div>
 
-      <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
+      <div className="max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
         <div className="grid grid-cols-9 gap-4">
           {imagesInDirectory.map(imageName => (
             <div
@@ -268,16 +267,42 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-[65rem] max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold mb-4">Confirmar Combinación</h3>
-            <p className="text-sm text-gray-300 mb-6">
-              Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.
-            </p>
-
+          <div 
+            className="bg-gray-800 rounded-lg shadow-xl p-6 overflow-y-auto"
+            style={{
+              width: 'calc(100vw - 20px)',
+              maxHeight: 'calc(100vh - 20px)'
+            }}
+          >
+            <div className="flex items-center gap-4 mb-1">
+              <h3 className="text-lg font-bold">Combinar</h3>
+              <p className="text-sm text-gray-300">
+                Se establecerá <span className="font-bold text-green-400">{primaryImage}</span> como el producto principal.
+              </p>
+                <p> • <strong>{selectedImages.length - 1}</strong> Imágenes secundarias</p>
+              <div className='flex-end ml-auto flex gap-4'>
+                <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedPropertyGroup(null);
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveCombination}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
+                disabled={!selectedPropertyGroup}
+              >
+                Confirmar
+              </button>
+              </div>
+            </div>
+            <h4 className="text-md font-semibold text-gray-300 mb-3">
+              Selecciona el grupo de propiedades para el producto principal:
+            </h4>
             <div className="mb-6">
-              <h4 className="text-md font-semibold text-gray-300 mb-3">
-                Selecciona el grupo de propiedades para el producto principal:
-              </h4>
 
               {propertyGroups.length > 0 ? (
                 <div className="flex flex-wrap gap-4 justify-center">
@@ -288,24 +313,25 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                       className={`flex items-start gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedPropertyGroup?.key === group.key
                         ? 'border-blue-500 bg-blue-900/20'
                         : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
-                        } w-[30rem]`}
+                        } w-[23rem]`}
                     >
                       <div className="flex-shrink-0">
-                        <div className="w-[10rem] aspect-[3/4] bg-gray-700 flex items-center justify-center">
+                        <div className="w-[10rem] aspect-[3/4] bg-gray-700 flex items-center justify-center flex-col">
                           <LazyImage
                             imagePath={getImagePath(group.imageName)}
                             alt={group.imageName}
                             className="w-full h-full object-cover rounded-md"
                           />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-200 mt-1 break-words">{group.imageName}</p>
+                          </div>
                         </div>
+                        
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="space-y-2">
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-200 mt-1">{group.imageName}</p>
-
-                          </div>
+                         
                           <div className="flex gap-4">
 
 
@@ -314,14 +340,13 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                               <p className="text-sm text-gray-200 break-words">
                                 {group.descripcion || <span className="text-gray-500 italic">Sin descripción</span>}
                               </p>
-                            </div>
-
-                            <div className="flex-1 max-w-[5rem]">
                               <span className="text-xs text-gray-400 font-medium">Precio:</span>
                               <p className="text-sm text-gray-200">
                                 {group.precio || <span className="text-gray-500 italic">Sin precio</span>}
                               </p>
                             </div>
+
+                            
                           </div>
                           <div>
                             <span className="text-xs text-gray-400 font-medium">Categorías:</span>
@@ -339,34 +364,6 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
               )}
             </div>
 
-            <div className="border-t border-gray-600 pt-4">
-              <h4 className="text-sm font-medium text-gray-400 mb-2">Resumen de la operación:</h4>
-              <div className="text-sm text-gray-300 space-y-1">
-                <p>• <strong>{primaryImage}</strong> se mantendrá como producto principal</p>
-                <p>• <strong>{selectedImages.length - 1}</strong> imágenes se vincularán como secundarias</p>
-                <p>• Las imágenes secundarias se eliminarán de resultado.csv</p>
-                <p>• El producto principal adoptará las propiedades del grupo seleccionado</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-4 mt-6">
-              <button
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setSelectedPropertyGroup(null);
-                }}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={saveCombination}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
-                disabled={!selectedPropertyGroup}
-              >
-                Confirmar y Guardar
-              </button>
-            </div>
           </div>
         </div>
       )}

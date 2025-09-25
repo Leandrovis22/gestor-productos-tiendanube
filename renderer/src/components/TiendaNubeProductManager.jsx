@@ -303,7 +303,7 @@ const TiendaNubeProductManager = () => {
 
   // Header con controles principales
   const Header = () => (
-    <div className="bg-gray-800 p-4 border-b border-gray-700">
+    <div className="bg-gray-800 p-[0.6rem] border-b border-gray-700">
       <div className="flex items-center justify-between">
         <FileSelector productManager={productManager} />
         <div className="flex items-center gap-4">
@@ -317,7 +317,7 @@ const TiendaNubeProductManager = () => {
             disabled={!productManager.currentMainProductImage || isProcessing}
           >
             <SkipForward size={16} />
-            Saltar Producto
+            Saltar
           </button>
           <button
             onClick={handleNextProduct}
@@ -325,7 +325,7 @@ const TiendaNubeProductManager = () => {
             disabled={productManager.imageQueue.length === 0 || !productManager.currentMainProductImage || isProcessing}
           >
             <ChevronRight size={16} />
-            {isProcessing ? 'Procesando...' : 'Siguiente Producto'}
+            {isProcessing ? 'Procesando...' : 'Guardar y Siguiente'}
           </button>
         </div>
       </div>
@@ -344,7 +344,7 @@ const TiendaNubeProductManager = () => {
   if (activeTab === 'combinar') {
     return (
       <div className="h-screen flex flex-col overflow-hidden bg-gray-900 text-white">
-        <div className="bg-gray-800 p-4 border-b border-gray-700">
+        <div className="bg-gray-800 p-1 border-b border-gray-700">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">Combinar Productos</h1>
             <button 

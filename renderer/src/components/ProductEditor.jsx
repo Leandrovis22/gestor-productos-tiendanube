@@ -65,7 +65,7 @@ const GeneralForm = ({
       </div>
 
       <h3 className="text-lg font-medium mb-2">Todas las Categorías</h3>
-      <div className="max-h-[17rem] overflow-y-auto border border-gray-700 rounded p-4 bg-gray-800">
+      <div className="max-h-[20rem] overflow-y-auto border border-gray-700 rounded p-4 bg-gray-800">
         <CategoryGroups
           categories={categories}
           selectedCategories={selectedCategories}
