@@ -82,15 +82,25 @@ const VariantsForm = ({
   selectedColors, onToggleColor, onSelectAllColors, onClearAllColors, predefinedColors,
   selectedSizes, onToggleSize, onSelectAllSizes, onClearAllSizes, predefinedSizes,
   typeName, setTypeName, typeValues, setTypeValues, predefinedTypes, onSelectPredefinedType,
-  onGenerateVariants, variantCombinations, onUpdateVariantPrice, onUpdateVariantStock
+  onGenerateVariants, variantCombinations, onUpdateVariantPrice, onUpdateVariantStock,
+  onSaveColor, // Nueva prop para guardar colores
+  colorMap // Nueva prop para el mapa de colores desde config
 }) => {
   const [valueSuggestions, setValueSuggestions] = React.useState([]);
-  const colorMap = {
+  const [newColorName, setNewColorName] = React.useState('');
+  const [newColorHex, setNewColorHex] = React.useState('#000000');
+  const [showAddColor, setShowAddColor] = React.useState(false);
+  
+  // Usar el colorMap desde la configuración, con fallback a valores por defecto
+  const defaultColorMap = {
     Amarillo: '#FFD700', Azul: '#0000FF', Beige: '#F5F5DC', Blanco: '#FFFFFF', Bordó: '#800000',
     Celeste: '#87CEEB', Fucsia: '#FF00FF', Gris: '#808080', Marrón: '#A52A2A', Naranja: '#FFA500',
     Negro: '#000000', Plata: '#C0C0C0', Rojo: '#FF0000', Rosa: '#FFC0CB', Verde: '#008000',
-    Violeta: '#EE82EE', Transparente: '#FFFFFF', Multicolor: 'linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)'
+    Violeta: '#EE82EE', Transparente: '#FFFFFF', Multicolor: 'linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)',
+    Lila: '#DDA0DD', Dorado: '#FFD700'
   };
+  
+  const currentColorMap = colorMap || defaultColorMap;
 
   const getFontColor = (hexColor) => {
     if (!hexColor || hexColor === '#FFFFFF') return '#000000';
@@ -99,6 +109,31 @@ const VariantsForm = ({
     const b = parseInt(hexColor.substr(5, 2), 16);
     const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
     return (yiq >= 128) ? '#000000' : '#FFFFFF';
+  };
+
+  // Función para agregar un nuevo color
+  const handleAddColor = async () => {
+    if (!newColorName.trim()) {
+      alert('Por favor, ingresa un nombre para el color');
+      return;
+    }
+
+    try {
+      const result = await onSaveColor(newColorName.trim(), newColorHex);
+      if (result.success) {
+        alert(result.message);
+        setNewColorName('');
+        setNewColorHex('#000000');
+        setShowAddColor(false);
+        // Los colores se actualizarán automáticamente a través de la prop predefinedColors
+        // que se actualiza cuando se llama a productForm.loadConfig(result.config)
+      } else {
+        alert('Error al guardar el color: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error saving color:', error);
+      alert('Error al guardar el color');
+    }
   };
 
   // Muestra todos los tipos si el input está vacío, o filtra si se está escribiendo.
@@ -145,7 +180,80 @@ const VariantsForm = ({
             <label className="flex items-center gap-2 mb-3">
               <input type="checkbox" checked={useColor} onChange={(e) => setUseColor(e.target.checked)} />
               <span className="font-medium">Color</span>
+              <button
+                onClick={() => setShowAddColor(!showAddColor)}
+                className="ml-auto px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs"
+                title="Agregar nuevo color"
+              >
+                + Color
+              </button>
             </label>
+            
+            {/* Formulario para agregar nuevo color */}
+            {showAddColor && (
+              <div className="mb-3 p-3 bg-gray-900/50 rounded border border-gray-500">
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="Nombre del nuevo color"
+                      value={newColorName}
+                      onChange={(e) => setNewColorName(e.target.value)}
+                      className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddColor();
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={newColorHex}
+                        onChange={(e) => setNewColorHex(e.target.value)}
+                        className="w-8 h-8 rounded cursor-pointer border border-gray-600"
+                        title="Seleccionar color"
+                      />
+                      <input
+                        type="text"
+                        value={newColorHex}
+                        onChange={(e) => setNewColorHex(e.target.value)}
+                        className="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs font-mono"
+                        placeholder="#000000"
+                        pattern="^#[0-9A-Fa-f]{6}$"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddColor}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs"
+                    >
+                      Agregar Color
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddColor(false);
+                        setNewColorName('');
+                        setNewColorHex('#000000');
+                      }}
+                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs"
+                    >
+                      Cancelar
+                    </button>
+                    {/* Preview del color */}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs text-gray-400">Vista previa:</span>
+                      <div
+                        className="w-6 h-6 rounded border border-gray-600"
+                        style={{ backgroundColor: newColorHex }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {useColor && (
               <div>
                 <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-900/50 rounded">
@@ -153,11 +261,11 @@ const VariantsForm = ({
                     <button
                       key={color}
                       onClick={() => onToggleColor(color)}
-                      className={`px-3 py-1 text-xs font-medium rounded-full border-2 ${selectedColors.includes(color) ? 'border-cyan-400' : 'border-transparent'}`}
+                      className={`px-3 py-1 text-xs font-medium rounded-full border-[3px] ${selectedColors.includes(color) ? 'border-red-600' : 'border-transparent'}`}
                       style={{
-                        background: colorMap[color] || '#FFFFFF',
-                        color: getFontColor(colorMap[color]),
-                        backgroundImage: color === 'Multicolor' ? colorMap[color] : 'none',
+                        background: currentColorMap[color] || '#CCCCCC',
+                        color: getFontColor(currentColorMap[color]),
+                        backgroundImage: color === 'Multicolor' ? currentColorMap[color] : 'none',
                         textShadow: color === 'Transparente' ? '0 0 2px #000' : 'none'
                       }}
                     >
@@ -346,6 +454,7 @@ export const ProductEditor = ({
   predefinedSizes,
   predefinedTypes,
   onSelectPredefinedType,
+  colorMap, // Nueva prop para el mapa de colores
 
   // Funciones de variantes
   onToggleColor,
@@ -357,6 +466,7 @@ export const ProductEditor = ({
   onGenerateVariants,
   onUpdateVariantPrice,
   onUpdateVariantStock,
+  onSaveColor, // Nueva prop para guardar colores
 
   // Control de pestañas
   activeTab
@@ -381,9 +491,11 @@ export const ProductEditor = ({
         return <VariantsForm 
           useColor={useColor} setUseColor={setUseColor} useSize={useSize} setUseSize={setUseSize} useType={useType} setUseType={setUseType}
           selectedColors={selectedColors} onToggleColor={onToggleColor} onSelectAllColors={onSelectAllColors} onClearAllColors={onClearAllColors} predefinedColors={predefinedColors}
-          selectedSizes={selectedSizes} onToggleSize={onToggleSize} onSelectAllSizes={onSelectAllSizes} onClearAllSizes={onClearAllSizes} predefinedSizes={predefinedSizes} predefinedTypes={predefinedTypes} onSelectPredefinedType={onSelectPredefinedType} // Pasamos las props
+          selectedSizes={selectedSizes} onToggleSize={onToggleSize} onSelectAllSizes={onSelectAllSizes} onClearAllSizes={onClearAllSizes} predefinedSizes={predefinedSizes} predefinedTypes={predefinedTypes} onSelectPredefinedType={onSelectPredefinedType}
           typeName={typeName} setTypeName={setTypeName} typeValues={typeValues} setTypeValues={setTypeValues}
           onGenerateVariants={onGenerateVariants} variantCombinations={variantCombinations} onUpdateVariantPrice={onUpdateVariantPrice} onUpdateVariantStock={onUpdateVariantStock}
+          onSaveColor={onSaveColor} // Pasar la función para guardar colores
+          colorMap={colorMap} // Pasar el mapa de colores
         />;
       default:
         return <GeneralForm 

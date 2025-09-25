@@ -268,6 +268,24 @@ const TiendaNubeProductManager = () => {
     }
   };
 
+  // Manejo de guardar nuevo color
+  const handleSaveColor = async (colorName, hexColor) => {
+    try {
+      if (window.electronAPI) {
+        const result = await window.electronAPI.saveColor(colorName, hexColor);
+        if (result.success && result.config) {
+          // Recargar la configuración para actualizar los colores disponibles
+          productForm.loadConfig(result.config);
+        }
+        return result;
+      }
+      return { success: false, error: 'electronAPI no disponible' };
+    } catch (error) {
+      console.error('Error saving color:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   // Manejo de guardado cuando se guardan combinaciones
   const handleCombinationSaved = async () => {
     // 1. Recargar el mapa de imágenes de productos
@@ -416,6 +434,7 @@ const TiendaNubeProductManager = () => {
               predefinedColors={productForm.predefinedColors}
               predefinedSizes={productForm.predefinedSizes}
               predefinedTypes={productForm.predefinedTypes}
+              colorMap={productForm.colorMap}
               onSelectPredefinedType={productForm.onSelectPredefinedType}
 
               // Funciones de variantes
@@ -428,6 +447,7 @@ const TiendaNubeProductManager = () => {
               onGenerateVariants={productForm.generateVariantCombinations}
               onUpdateVariantPrice={productForm.updateVariantPrice}
               onUpdateVariantStock={productForm.updateVariantStock}
+              onSaveColor={handleSaveColor}
 
               // Control de pestañas
               activeTab={activeTab}

@@ -53,7 +53,7 @@ export const CategoryGroups = ({ categories, selectedCategories, onToggleCategor
                 className={`w-full text-left text-sm px-3 py-2 rounded transition-colors duration-150 ${
                   isGroupActive && selectedCategories.has(path)
                     ? 'bg-blue-600 text-white font-semibold'
-                    : 'bg-gray-700 hover:bg-gray-600'
+                    : 'bg-gray-600 hover:bg-gray-500 text-gray-100'
                 }`}
               >
                 {path} {/* Muestra la ruta completa */}

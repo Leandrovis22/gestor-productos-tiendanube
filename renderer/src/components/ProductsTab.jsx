@@ -300,7 +300,7 @@ const EditView = ({
   };
 
   return (
-    <div className="h-[calc(100vh-90px)] overflow-y-auto pr-2">
+    <div className="h-[calc(100vh-20px)] overflow-y-auto pr-2">
       <div className="space-y-6">
         <div className="flex justify-between items-center sticky top-0 bg-gray-900 z-10 py-2">
           <h2 className="text-xl font-semibold flex items-center gap-2">

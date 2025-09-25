@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   readConfig: () => ipcRenderer.invoke('read-config'),
   savePredefinedType: (newType) => ipcRenderer.invoke('savePredefinedType', newType),
+  saveColor: (newColor, hexColor) => ipcRenderer.invoke('saveColor', newColor, hexColor),
 
   // New functions for Products tab
   readProductsFromCsv: (directoryPath) => ipcRenderer.invoke('read-products-from-csv', directoryPath),

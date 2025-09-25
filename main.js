@@ -233,6 +233,28 @@ ipcMain.handle('read-config', async (event) => {
             "Marrón", "Naranja", "Negro", "Plata", "Rojo", "Rosa", "Verde", "Violeta",
             "Transparente", "Multicolor", "Lila", "Dorado"
           ],
+          "colorMap": {
+            "Amarillo": "#FFD700",
+            "Azul": "#0000FF", 
+            "Beige": "#F5F5DC", 
+            "Blanco": "#FFFFFF", 
+            "Bordó": "#800000",
+            "Celeste": "#87CEEB", 
+            "Fucsia": "#FF00FF", 
+            "Gris": "#808080", 
+            "Marrón": "#A52A2A", 
+            "Naranja": "#ff7300ff",
+            "Negro": "#000000", 
+            "Plata": "#C0C0C0", 
+            "Rojo": "#b80000ff", 
+            "Rosa": "#FFC0CB", 
+            "Verde": "#008000",
+            "Violeta": "#EE82EE", 
+            "Transparente": "#FFFFFF", 
+            "Multicolor": "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)",
+            "Lila": "#DDA0DD", 
+            "Dorado": "#a16900ff"
+          },
           "sizes": ["XS", "S", "M", "L", "XL","40 cm", "45 cm", "50 cm", "55 cm", "60 cm", "65 cm", "70 cm"],
           "predefinedTypes": [
             {
@@ -369,6 +391,65 @@ ipcMain.handle('savePredefinedType', async (event, newType) => {
     return { success: true, config };
   } catch (error) {
     console.error('Error saving predefined type:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('saveColor', async (event, newColor, hexColor = null) => {
+  const { configDir, configPath } = getPermanentConfigPath();
+  
+  // Crear directorio si no existe
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+  } catch (error) {
+    console.warn('Error creating config directory:', error);
+  }
+  
+  try {
+    let config = {};
+    try {
+      const configContent = await fs.readFile(configPath, 'utf-8');
+      config = JSON.parse(configContent);
+    } catch (error) {
+      // Si el archivo no existe o hay un error de parseo, empezamos con un objeto vacío.
+      if (error.code !== 'ENOENT') console.error('Error reading or parsing config for color update:', error);
+    }
+
+    if (!config.variants) config.variants = {};
+    if (!config.variants.colors) config.variants.colors = [];
+    if (!config.variants.colorMap) config.variants.colorMap = {};
+
+    // Verificar si el color ya existe (case insensitive)
+    const existingColorIndex = config.variants.colors.findIndex(color => 
+      typeof color === 'string' && typeof newColor === 'string' && 
+      color.toLowerCase() === newColor.toLowerCase()
+    );
+
+    if (existingColorIndex === -1) {
+      // Agregar el nuevo color si no existe
+      config.variants.colors.push(newColor);
+      
+      // Agregar al colorMap con el hex proporcionado o un color por defecto
+      config.variants.colorMap[newColor] = hexColor || '#CCCCCC';
+      
+      // Opcional: ordenar los colores alfabéticamente
+      config.variants.colors.sort();
+      
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      console.log(`Color "${newColor}" with hex "${hexColor || '#CCCCCC'}" added to config`);
+      return { success: true, config, message: `Color "${newColor}" agregado exitosamente` };
+    } else {
+      // Si el color existe pero se proporciona un nuevo hex, actualizar el colorMap
+      if (hexColor) {
+        config.variants.colorMap[newColor] = hexColor;
+        await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+        console.log(`Color "${newColor}" updated with new hex "${hexColor}"`);
+        return { success: true, config, message: `Color "${newColor}" actualizado con nuevo código hex` };
+      }
+      return { success: true, config, message: `El color "${newColor}" ya existe` };
+    }
+  } catch (error) {
+    console.error('Error saving color:', error);
     return { success: false, error: error.message };
   }
 });

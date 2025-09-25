@@ -50,6 +50,7 @@ export const useProductFormManager = () => {
   const [predefinedColors, setPredefinedColors] = useState([]);
   const [predefinedSizes, setPredefinedSizes] = useState([]);
   const [predefinedTypes, setPredefinedTypes] = useState([]);
+  const [colorMap, setColorMap] = useState({});
   const [defaultTypeName, setDefaultTypeName] = useState('');
   const [defaultTypeValues, setDefaultTypeValues] = useState('');
 
@@ -63,6 +64,7 @@ export const useProductFormManager = () => {
       if (config.variants) {
         setPredefinedColors(config.variants.colors || []);
         setPredefinedSizes(config.variants.sizes || []);
+        setColorMap(config.variants.colorMap || {});
         
         // Solo usar predefinedTypes (formato nuevo con arrays)
         const predefinedTypes = config.variants.predefinedTypes || [];
@@ -328,6 +330,7 @@ export const useProductFormManager = () => {
     predefinedColors,
     predefinedTypes,
     predefinedSizes,
+    colorMap,
 
     // Funciones del formulario básico
     loadConfig,
