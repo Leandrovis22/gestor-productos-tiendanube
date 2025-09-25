@@ -923,11 +923,22 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
 // Nuevas funciones python:
 
 let cachedScriptPath = null;
+let cachedScriptVersion = "2.0"; // Incrementar para forzar regeneración
 
 // Función para asegurar que el script Python existe
 async function ensurePythonScript() {
-  if (cachedScriptPath && await fs.access(cachedScriptPath).then(() => true).catch(() => false)) {
-    return cachedScriptPath;
+  const versionMarker = `# Version: ${cachedScriptVersion}`;
+  
+  // Verificar si tenemos script cached y si está actualizado
+  if (cachedScriptPath) {
+    try {
+      const existingContent = await fs.readFile(cachedScriptPath, 'utf-8');
+      if (existingContent.includes(versionMarker)) {
+        return cachedScriptPath; // Script está actualizado
+      }
+    } catch (error) {
+      // Script no existe o no se puede leer, continúa para recrearlo
+    }
   }
   
   // Crear directorio permanente para el script
@@ -936,12 +947,78 @@ async function ensurePythonScript() {
   
   const scriptPath = path.join(scriptsDir, 'inpaint.py');
   
-  // Script Python optimizado
+  // Script Python optimizado con radio adaptativo y selección de algoritmo
   const pythonScript = `#!/usr/bin/env python3
+# Version: ${cachedScriptVersion}
 import sys
 import cv2
 import numpy as np
 import os
+
+def calculate_optimal_radius(mask):
+    """
+    Calcula el radio óptimo basado en el área de la máscara
+    """
+    try:
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return 3
+        
+        # Calcular área total de todos los contornos
+        total_area = sum(cv2.contourArea(contour) for contour in contours)
+        
+        if total_area == 0:
+            return 3
+        
+        # Radio proporcional al área (ajustado para mejores resultados)
+        # Fórmula: radio = max(3, min(50, sqrt(area) * factor))
+        radius = max(3, min(50, int(np.sqrt(total_area) * 0.15)))
+        
+        print(f"DEBUG: Área total máscara: {total_area}, Radio calculado: {radius}", file=sys.stderr)
+        return radius
+        
+    except Exception as e:
+        print(f"WARNING: Error calculando radio óptimo: {e}, usando radio por defecto", file=sys.stderr)
+        return 3
+
+def select_inpaint_algorithm(mask):
+    """
+    Selecciona el algoritmo de inpainting basado en las características de la máscara
+    """
+    try:
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return cv2.INPAINT_TELEA
+        
+        total_area = sum(cv2.contourArea(contour) for contour in contours)
+        
+        # Calcular factor de forma promedio (perímetro^2 / área)
+        # Valores altos indican formas más complejas/irregulares
+        total_perimeter = sum(cv2.arcLength(contour, True) for contour in contours)
+        
+        if total_area > 0:
+            shape_factor = (total_perimeter ** 2) / total_area
+        else:
+            shape_factor = 0
+        
+        # Criterios de selección:
+        # - Áreas grandes (>8000 píxeles): NAVIER_STOKES es mejor para regiones suaves
+        # - Formas muy irregulares (shape_factor > 50): TELEA es mejor para detalles
+        # - Por defecto: TELEA para texturas y detalles finos
+        
+        if total_area > 8000 and shape_factor <= 50:
+            algorithm = cv2.INPAINT_NS
+            algorithm_name = "NAVIER_STOKES"
+        else:
+            algorithm = cv2.INPAINT_TELEA
+            algorithm_name = "TELEA"
+        
+        print(f"DEBUG: Área: {total_area}, Factor forma: {shape_factor:.2f}, Algoritmo: {algorithm_name}", file=sys.stderr)
+        return algorithm
+        
+    except Exception as e:
+        print(f"WARNING: Error seleccionando algoritmo: {e}, usando TELEA por defecto", file=sys.stderr)
+        return cv2.INPAINT_TELEA
 
 def main():
     if len(sys.argv) != 5:
@@ -952,12 +1029,13 @@ def main():
     image_path = sys.argv[1]
     mask_path = sys.argv[2]
     output_path = sys.argv[3]
-    radius = int(sys.argv[4])
+    base_radius = int(sys.argv[4])  # Ahora se usa como referencia, no como valor fijo
     
     # Debug info
     print(f"DEBUG: image_path='{image_path}'", file=sys.stderr)
     print(f"DEBUG: mask_path='{mask_path}'", file=sys.stderr)
     print(f"DEBUG: output_path='{output_path}'", file=sys.stderr)
+    print(f"DEBUG: base_radius={base_radius}", file=sys.stderr)
     
     try:
         if not os.path.exists(image_path):
@@ -985,7 +1063,26 @@ def main():
             mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
         
         _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
-        result = cv2.inpaint(image, mask, radius, cv2.INPAINT_TELEA)
+        
+        # Calcular radio óptimo basado en la máscara
+        optimal_radius = calculate_optimal_radius(mask)
+        
+        # Si el radio base es muy diferente del óptimo, usar una combinación
+        # Esto permite cierto control manual pero con optimización automática
+        if abs(optimal_radius - base_radius) > 10:
+            # Usar el radio óptimo si la diferencia es significativa
+            final_radius = optimal_radius
+        else:
+            # Usar promedio ponderado favoreciendo el radio óptimo
+            final_radius = int(optimal_radius * 0.7 + base_radius * 0.3)
+        
+        # Seleccionar algoritmo óptimo
+        algorithm = select_inpaint_algorithm(mask)
+        
+        print(f"DEBUG: Radio final: {final_radius}", file=sys.stderr)
+        
+        # Aplicar inpainting con parámetros optimizados
+        result = cv2.inpaint(image, mask, final_radius, algorithm)
         
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
@@ -1013,6 +1110,7 @@ if __name__ == "__main__":
   try {
     await fs.writeFile(scriptPath, pythonScript, 'utf-8');
     cachedScriptPath = scriptPath;
+    console.log(`🐍 [MAIN] Script Python actualizado en: ${scriptPath}`);
     return scriptPath;
   } catch (error) {
     console.error('❌ Error creando script Python:', error);
