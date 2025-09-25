@@ -805,12 +805,21 @@ ipcMain.handle('process-inpainting', async (event, imagePath, maskDataUrl) => {
     const outputBase64 = outputBuffer.toString('base64');
     const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
 
-    // Cleanup temporary files
+    // Cleanup temporary files with retry mechanism
     try {
       await fs.unlink(tempImagePath);
       await fs.unlink(tempMaskPath);
       await fs.unlink(successfulOutputPath);
-      await fs.rmdir(tempDir);
+      
+      // Try to remove directory, but don't fail if it's not empty
+      try {
+        await fs.rmdir(tempDir);
+      } catch (rmdirError) {
+        if (rmdirError.code !== 'ENOTEMPTY') {
+          console.warn('⚠️ [MAIN] Warning: Could not remove temp directory:', rmdirError.message);
+        }
+        // If directory is not empty, that's okay - it will be cleaned up later
+      }
     } catch (cleanupError) {
       console.warn('⚠️ [MAIN] Warning: Could not clean up temporary files:', cleanupError.message);
     }
@@ -855,7 +864,8 @@ import os
 
 def main():
     if len(sys.argv) != 5:
-        print("ERROR: Uso incorrecto", file=sys.stderr)
+        print(f"ERROR: Uso incorrecto. Recibidos {len(sys.argv)} argumentos, esperados 5", file=sys.stderr)
+        print(f"Argumentos recibidos: {sys.argv}", file=sys.stderr)
         sys.exit(1)
     
     image_path = sys.argv[1]
@@ -863,24 +873,31 @@ def main():
     output_path = sys.argv[3]
     radius = int(sys.argv[4])
     
+    # Debug info
+    print(f"DEBUG: image_path='{image_path}'", file=sys.stderr)
+    print(f"DEBUG: mask_path='{mask_path}'", file=sys.stderr)
+    print(f"DEBUG: output_path='{output_path}'", file=sys.stderr)
+    
     try:
         if not os.path.exists(image_path):
-            print(f"ERROR: Imagen no encontrada: {image_path}", file=sys.stderr)
+            print(f"ERROR: Imagen no encontrada en: '{image_path}'", file=sys.stderr)
+            print(f"ERROR: Directorio existe: {os.path.exists(os.path.dirname(image_path))}", file=sys.stderr)
             sys.exit(1)
             
         if not os.path.exists(mask_path):
-            print(f"ERROR: Máscara no encontrada: {mask_path}", file=sys.stderr)
+            print(f"ERROR: Máscara no encontrada en: '{mask_path}'", file=sys.stderr)
+            print(f"ERROR: Directorio existe: {os.path.exists(os.path.dirname(mask_path))}", file=sys.stderr)
             sys.exit(1)
         
         image = cv2.imread(image_path)
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         
         if image is None:
-            print(f"ERROR: No se pudo cargar la imagen", file=sys.stderr)
+            print(f"ERROR: No se pudo cargar la imagen desde '{image_path}'", file=sys.stderr)
             sys.exit(1)
             
         if mask is None:
-            print(f"ERROR: No se pudo cargar la máscara", file=sys.stderr)
+            print(f"ERROR: No se pudo cargar la máscara desde '{mask_path}'", file=sys.stderr)
             sys.exit(1)
         
         if mask.shape[:2] != image.shape[:2]:
@@ -898,11 +915,13 @@ def main():
         if success:
             print(output_path)
         else:
-            print(f"ERROR: No se pudo guardar: {output_path}", file=sys.stderr)
+            print(f"ERROR: No se pudo guardar en: '{output_path}'", file=sys.stderr)
             sys.exit(1)
             
     except Exception as e:
-        print(f"ERROR: {str(e)}", file=sys.stderr)
+        print(f"ERROR: Excepción durante procesamiento: {str(e)}", file=sys.stderr)
+        import traceback
+        print(f"TRACEBACK: {traceback.format_exc()}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":
@@ -930,13 +949,28 @@ async function runPythonInpainting(scriptPath, imagePath, maskPath, outputPath, 
       const normalizedImagePath = path.normalize(imagePath);
       const normalizedMaskPath = path.normalize(maskPath);
       const normalizedOutputPath = path.normalize(outputPath);
+      const normalizedScriptPath = path.normalize(actualScriptPath);
       
-      const args = ['-3', actualScriptPath, normalizedImagePath, normalizedMaskPath, normalizedOutputPath, radius.toString()];
+      // En Windows, usar array de argumentos maneja automáticamente las rutas con espacios
+      const args = [
+        '-3', 
+        normalizedScriptPath, 
+        normalizedImagePath, 
+        normalizedMaskPath, 
+        normalizedOutputPath, 
+        radius.toString()
+      ];
+      
+      console.log(`🐍 [MAIN] Ejecutando Python con argumentos:`, args);
+      console.log(`🐍 [MAIN] Script path: "${normalizedScriptPath}"`);
+      console.log(`🐍 [MAIN] Working directory: "${process.cwd()}"`);
+      console.log(`🐍 [MAIN] Home directory: "${os.homedir()}"`);
       
       const pythonProcess = spawn('py', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true,
-        windowsHide: true
+        shell: false, // Cambiar a false para mejor manejo de argumentos con espacios
+        windowsHide: true,
+        env: { ...process.env } // Asegurar que se mantengan las variables de entorno
       });
       
       let stdout = '';

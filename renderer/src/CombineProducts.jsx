@@ -1,31 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const InlineLocalImage = ({ path, alt, className }) => {
-  const [src, setSrc] = useState('');
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadImage = async () => {
-      const resolvedPath = await Promise.resolve(path);
-      if (window.electronAPI && resolvedPath) {
-        try {
-          const imageData = await window.electronAPI.loadImage(resolvedPath);
-          if (isMounted && imageData) { // Verificar que imageData no sea null
-            setSrc(imageData);
-          }
-        } catch (error) {
-          console.warn(`Imagen no disponible: ${path}`);
-          // El componente mostrará el placeholder gris automáticamente
-        }
-      }
-    };
-
-    loadImage();
-    return () => { isMounted = false; };
-  }, [path]);
-
-  return src ? <img src={src} alt={alt} className={className} /> : <div className={`${className} bg-gray-700 animate-pulse`}></div>;
-};
+import LazyImage from './components/LazyImage';
 
 const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
   const [imagesInDirectory, setImagesInDirectory] = useState([]);
@@ -34,6 +8,12 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPropertyGroup, setSelectedPropertyGroup] = useState(null);
   const [existingPrimaryImages, setExistingPrimaryImages] = useState(new Set());
+
+  // Función auxiliar para construir paths de imagen de forma síncrona
+  const getImagePath = (imageName) => {
+    // Usar path.join de forma síncrona en el renderer
+    return `${workingDirectory}\\${imageName}`;
+  };
 
   useEffect(() => {
     const loadImages = async () => {
@@ -60,7 +40,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
 
         // Filtrar solo imágenes que realmente existen en el disco
         const existingImages = [];
-        for (const img of allImages) { // Usar path.join para construir la ruta
+        for (const img of allImages) {
           const fullPath = await window.electronAPI.joinPaths(workingDirectory, img);
           const exists = await window.electronAPI.fileExists(fullPath);
           if (exists) {
@@ -260,8 +240,8 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
               className={`relative border-4 rounded-lg overflow-hidden cursor-pointer transition-all ${getBorderColor(imageName)}`}
               onClick={() => toggleImageSelection(imageName)}
             >
-              <InlineLocalImage
-                path={window.electronAPI.joinPaths(workingDirectory, imageName)}
+              <LazyImage
+                imagePath={getImagePath(imageName)}
                 alt={imageName}
                 className="w-full h-32 object-cover"
               />
@@ -307,8 +287,8 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
                         } w-[30rem]`}
                     >
                       <div className="flex-shrink-0">
-                        <InlineLocalImage
-                          path={window.electronAPI.joinPaths(workingDirectory, group.imageName)}
+                        <LazyImage
+                          imagePath={getImagePath(group.imageName)}
                           alt={group.imageName}
                           className="w-[10rem] h-[13rem] object-cover rounded-md"
                         />
