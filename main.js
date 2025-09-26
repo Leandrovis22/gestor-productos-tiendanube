@@ -558,18 +558,18 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
       rows.push(mainRow);
     }
 
-    const csvRows = rows.map(row => row.join(';')).join('\n') + '\n';
+    const csvString = Papa.unparse(rows, { header: false, delimiter: ';', newline: '\r\n' });
     
     // Verificar si el archivo existe y si la última línea termina correctamente
-    let dataToAppend = csvRows;
+    let dataToAppend = csvString;
     try {
       const fileExists = await fs.access(csvPath).then(() => true).catch(() => false);
       if (fileExists) {
         // Leer el contenido actual para verificar si termina con salto de línea
         const existingContent = await fs.readFile(csvPath, 'latin1');
-        if (existingContent.length > 0 && !existingContent.endsWith('\n')) {
+        if (existingContent.length > 0 && !existingContent.endsWith('\n') && !existingContent.endsWith('\r')) {
           // Si no termina con salto de línea, agregamos uno antes de los nuevos datos
-          dataToAppend = '\n' + csvRows;
+          dataToAppend = '\r\n' + csvString;
         }
       }
     } catch (error) {
@@ -787,14 +787,37 @@ ipcMain.handle('save-image-url-mapping', async (event, csvPath, urlId, imagesStr
   try {
     const imageUrlCsvPath = path.join(path.dirname(csvPath), 'imagen-url.csv');
     
-    const exists = await fs.access(imageUrlCsvPath).then(() => true).catch(() => false);
-    if (!exists) {
-      const headers = 'url;imagenes\n';
-      await fs.writeFile(imageUrlCsvPath, headers, 'utf-8');
+    const mapping = {
+      'url': urlId,
+      'imagenes': imagesStr
+    };
+    const csvString = Papa.unparse([mapping], { header: false, delimiter: ';', newline: '\r\n' });
+
+    let dataToAppend = csvString;
+    let fileExists = false;
+    let needsHeader = true;
+
+    try {
+      const stats = await fs.stat(imageUrlCsvPath);
+      fileExists = true;
+      if (stats.size > 0) {
+        needsHeader = false;
+        const existingContent = await fs.readFile(imageUrlCsvPath, 'utf-8');
+        if (!existingContent.endsWith('\n') && !existingContent.endsWith('\r')) {
+          dataToAppend = '\r\n' + csvString;
+        }
+      }
+    } catch (e) {
+      // El archivo no existe
+      fileExists = false;
     }
     
-    const row = `${urlId};${imagesStr}\n`;
-    await fs.appendFile(imageUrlCsvPath, row, 'utf-8');
+    if (!fileExists || needsHeader) {
+      const headers = '"url";"imagenes"';
+      await fs.writeFile(imageUrlCsvPath, `${headers}\r\n${csvString}`, 'utf-8');
+    } else {
+      await fs.appendFile(imageUrlCsvPath, dataToAppend, 'utf-8');
+    }
     
     return { success: true };
   } catch (error) {
