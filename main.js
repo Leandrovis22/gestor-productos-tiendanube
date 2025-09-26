@@ -464,7 +464,8 @@ ipcMain.handle('save-product', async (event, csvPath, productData, variants) => 
       const month = pad(now.getMonth() + 1); // Meses son 0-indexados
       const hours = pad(now.getHours());
       const minutes = pad(now.getMinutes());
-      const timestamp = `${day}-${month}-${hours}-${minutes}`;
+      const seconds = pad(now.getSeconds());
+      const timestamp = `${day}-${month}-${hours}-${minutes}-${seconds}`;
       
       const cleanName = name.toLowerCase()
         .replace(/[áéíóúñü]/g, match => ({
