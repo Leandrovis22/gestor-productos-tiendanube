@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import LazyImage from './components/LazyImage';
 
-const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
+const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData, onSyncCsvData }) => {
   const [imagesInDirectory, setImagesInDirectory] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [primaryImage, setPrimaryImage] = useState(null);
@@ -165,7 +165,12 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       // 3. Remove secondary images from resultado.csv
       await window.electronAPI.removeProductsFromResultado(resultadoPath, secondaryImages);
 
-      // 4. Update local state
+      // 4. Sync csvData with disk state if function is provided
+      if (onSyncCsvData) {
+        await onSyncCsvData();
+      }
+
+      // 5. Update local state
       // Solo eliminar las imágenes secundarias, mantener el producto principal
       setImagesInDirectory(prev => prev.filter(img => !secondaryImages.includes(img)));
 
@@ -177,7 +182,7 @@ const CombineProducts = ({ workingDirectory, onCombinationSaved, csvData }) => {
       setSelectedPropertyGroup(null); // This is correct
       setIsModalOpen(false);
 
-      // 5. Notify parent component
+      // 6. Notify parent component
       await onCombinationSaved();
 
     } catch (error) {

@@ -318,6 +318,30 @@ export const useProductManager = () => {
     return newQueue[nextIndex]; // Return next product filename
   };
 
+  // Función para sincronizar csvData con el estado real de las imágenes en disco
+  const syncCsvDataWithDisk = async () => {
+    if (!csvData.length || !workingDirectory) return;
+
+    try {
+      const processedImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/procesadas`, ['.jpg', '.jpeg', '.png', '.webp']));
+      const saltadasImages = new Set(await window.electronAPI.listFiles(`${workingDirectory}/saltadas`, ['.jpg', '.jpeg', '.png', '.webp']));
+
+      // Filtrar csvData para mantener solo imágenes que NO están en carpetas especiales
+      const syncedCsvData = csvData.filter(row => {
+        if (!row.archivo) return true; // Mantener filas sin archivo especificado
+        return !processedImages.has(row.archivo) && !saltadasImages.has(row.archivo);
+      });
+
+      // Solo actualizar si realmente cambió algo
+      if (syncedCsvData.length !== csvData.length) {
+        console.log(`[syncCsvDataWithDisk] Synchronized csvData: ${csvData.length} -> ${syncedCsvData.length} rows`);
+        setCsvData(syncedCsvData);
+      }
+    } catch (error) {
+      console.error('Error synchronizing csvData with disk:', error);
+    }
+  };
+
   // Saltar producto
   const skipProduct = async (onImageReset, onFormReset) => {
     if (currentImageIndex >= imageQueue.length || !workingDirectory) return;
@@ -346,8 +370,8 @@ export const useProductManager = () => {
         }
       }
 
-      const updatedCsvData = csvData.filter(row => !currentProductAllImages.includes(row.archivo));
-      setCsvData(updatedCsvData);
+      // Sincronizar csvData con el estado real del disco después de mover archivos
+      await syncCsvDataWithDisk();
 
       const newQueue = imageQueue.filter(img => !currentProductAllImages.includes(img));
       setImageQueue(newQueue);
@@ -429,6 +453,7 @@ export const useProductManager = () => {
     saveCurrentProduct,
     nextProduct,
     skipProduct,
-    restartApp
+    restartApp,
+    syncCsvDataWithDisk
   };
 };

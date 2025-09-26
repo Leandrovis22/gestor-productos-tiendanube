@@ -652,6 +652,35 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
       return { success: true };
     }
 
+    // Get the working directory from the resultado.csv path
+    const workingDirectory = path.dirname(resultadoPath);
+    
+    // Verify that the images to remove are actually available for combination
+    // (i.e., they exist in the main directory and are not in saltadas or procesadas)
+    const imagesToRemoveFiltered = [];
+    for (const imageName of imagesToRemove) {
+      const saltadasPath = path.join(workingDirectory, 'saltadas', imageName);
+      const procesadasPath = path.join(workingDirectory, 'procesadas', imageName);
+      
+      // Check if image is in saltadas or procesadas folders
+      const inSaltadas = await fs.access(saltadasPath).then(() => true).catch(() => false);
+      const inProcesadas = await fs.access(procesadasPath).then(() => true).catch(() => false);
+      
+      // Only remove from resultado.csv if image is NOT in protected folders
+      // This prevents removing lines for images that were skipped or already processed
+      if (!inSaltadas && !inProcesadas) {
+        imagesToRemoveFiltered.push(imageName);
+      } else {
+        console.log(`[remove-products-from-resultado] Skipping removal of ${imageName} - found in protected folder`);
+      }
+    }
+
+    console.log(`[remove-products-from-resultado] Original images to remove: ${imagesToRemove.length}, Filtered: ${imagesToRemoveFiltered.length}`);
+    
+    if (imagesToRemoveFiltered.length === 0) {
+      return { success: true, removedCount: 0, message: 'No valid images to remove from resultado.csv - all are in protected folders' };
+    }
+
     // Read the CSV file
     const csvContent = await fs.readFile(resultadoPath, 'utf8');
     const lines = csvContent.split('\n').filter(line => line.trim());
@@ -660,9 +689,9 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
       return { success: true };
     }
 
-    // Filter out lines that contain any of the images to remove
+    // Filter out lines that contain any of the filtered images to remove
     const filteredLines = lines.filter(line => {
-      return !imagesToRemove.some(imageToRemove => line.includes(imageToRemove));
+      return !imagesToRemoveFiltered.some(imageToRemove => line.includes(imageToRemove));
     });
 
     const removedCount = lines.length - filteredLines.length;
@@ -670,6 +699,7 @@ ipcMain.handle('remove-products-from-resultado', async (event, resultadoPath, im
     if (removedCount > 0) {
       // Write back to file
       await fs.writeFile(resultadoPath, filteredLines.join('\n') + '\n', 'utf8');
+      console.log(`[remove-products-from-resultado] Removed ${removedCount} lines from resultado.csv`);
     }
 
     return { success: true, removedCount };

@@ -297,7 +297,10 @@ const TiendaNubeProductManager = () => {
     // 3. Recargar las imágenes desde los datos actualizados
     await productManager.loadImagesFromData(productManager.csvData);
     
-    // 4. NUEVA LÍNEA: Forzar actualización de thumbnails para el producto actual
+    // 4. Sincronizar csvData con el estado del disco
+    await productManager.syncCsvDataWithDisk();
+    
+    // 5. NUEVA LÍNEA: Forzar actualización de thumbnails para el producto actual
     if (productManager.currentMainProductImage) {
       productManager.updateThumbnails(productManager.currentMainProductImage);
     }
@@ -376,7 +379,8 @@ const TiendaNubeProductManager = () => {
         <CombineProducts 
           workingDirectory={productManager.workingDirectory} 
           onCombinationSaved={handleCombinationSaved} 
-          csvData={productManager.csvData} 
+          csvData={productManager.csvData}
+          onSyncCsvData={productManager.syncCsvDataWithDisk}
         />
       </div>
     );
