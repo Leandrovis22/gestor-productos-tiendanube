@@ -1,3 +1,23 @@
+/**
+ * @file InpaintingTool.jsx
+ * @description Este componente proporciona una herramienta de "inpainting" (borrado mágico) para imágenes.
+ * Se integra con un lienzo principal (`mainCanvasRef`) y permite al usuario "pintar" sobre áreas de una imagen
+ * que desean eliminar o reconstruir.
+ *
+ * Funcionalidades clave:
+ * - **Modo de Inpainting:** Se activa para permitir el dibujo de una máscara sobre la imagen.
+ * - **Pincel ajustable:** El usuario puede cambiar el tamaño del pincel para la máscara.
+ * - **Dibujo de máscara:** El usuario dibuja sobre el lienzo para crear una máscara. Las áreas enmascaradas se resaltan visualmente.
+ * - **Procesamiento automático:** Después de que el usuario deja de dibujar, el componente envía automáticamente la imagen original
+ *   y la máscara a un proceso de backend (a través de `window.electronAPI.processInpainting`) para realizar el inpainting.
+ * - **Actualización de imagen:** Una vez procesada, la imagen resultante reemplaza a la original en el lienzo.
+ * - **Deshacer cambios:** Permite revertir la imagen a su estado original antes de cualquier edición de inpainting.
+ * - **Gestión de estado:** Maneja el estado de dibujo, procesamiento y cambios no guardados. Se reinicia automáticamente
+ *   cuando el usuario cambia a una imagen diferente.
+ * - **Integración con componentes hijos:** Inyecta los controles de inpainting (slider de pincel, botón de deshacer)
+ *   en los componentes hijos que se le pasan.
+ */
+
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Brush, RotateCcw, Undo } from 'lucide-react';
 import { displayImageHelper } from './components/ImageManager';

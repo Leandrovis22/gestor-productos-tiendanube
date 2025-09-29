@@ -1,3 +1,14 @@
+/**
+ * @file CombineProducts.jsx
+ * @description Este componente permite a los usuarios combinar múltiples imágenes de productos en un solo producto principal.
+ * Muestra una galería de imágenes de un directorio de trabajo, permitiendo la selección de varias imágenes.
+ * El usuario puede designar una imagen como la "principal" y las demás como "secundarias".
+ * Al combinar, se abre un modal para que el usuario elija qué conjunto de propiedades (descripción, precio, categorías)
+ * de las imágenes seleccionadas se aplicará al producto principal.
+ * La lógica guarda la relación de imágenes en `imagenes_producto.csv`, actualiza los datos del producto principal
+ * en `resultado.csv` y elimina las imágenes secundarias de este último.
+ */
+
 import { useState, useEffect } from 'react';
 import LazyImage from './components/LazyImage';
 

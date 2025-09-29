@@ -1,3 +1,23 @@
+/**
+ * @file LazyImage.jsx
+ * @description Este componente se utiliza para cargar imágenes de forma "perezosa" (lazy loading).
+ * Su objetivo es mejorar el rendimiento de la aplicación al retrasar la carga de imágenes
+ * hasta que estén a punto de entrar en el área visible del usuario.
+ *
+ * Funcionalidades clave:
+ * - **Intersection Observer:** Utiliza la API `IntersectionObserver` del navegador para detectar de manera eficiente
+ *   cuándo el componente de la imagen entra en la pantalla (o está cerca de hacerlo).
+ * - **Carga bajo demanda:** La imagen solo comienza a cargarse desde el sistema de archivos (`window.electronAPI.getLocalImageUrl`)
+ *   una vez que es detectada por el `IntersectionObserver`.
+ * - **Placeholder:** Muestra un placeholder (un esqueleto animado por defecto, o uno personalizado) mientras la imagen
+ *   no está visible o se está cargando. Esto evita saltos en el layout y mejora la experiencia del usuario.
+ * - **Manejo de errores:** Si la imagen no se puede cargar, muestra un estado de "fallback" (un cuadro gris con texto)
+ *   en lugar de un ícono de imagen rota.
+ * - **Optimización de rendimiento:** Al convertir la ruta del archivo a una URL especial (`local-image://`) manejada por Electron,
+ *   permite que el motor de renderizado de Chromium (el navegador subyacente) gestione la carga y el cacheo de la imagen,
+ *   lo cual es más eficiente que cargarla como un Data URL (base64).
+ */
+
 import { useState, useEffect, useRef } from 'react';
 
 const LazyImage = ({ imagePath, alt, className, placeholder = null }) => {

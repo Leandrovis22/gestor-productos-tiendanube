@@ -1,3 +1,46 @@
+/**
+ * @file ImageManager.jsx
+ * @description Este archivo contiene un conjunto de componentes y un hook personalizado para gestionar la visualización
+ * y edición de imágenes de productos en un lienzo (`<canvas>`).
+ *
+ * `displayImageHelper`:
+ * - Una función auxiliar que se encarga de dibujar una imagen en un lienzo.
+ * - Ajusta la imagen para que quepa dentro del contenedor del lienzo, la centra y aplica factores de zoom y paneo.
+ * - Devuelve las dimensiones y la posición de la imagen renderizada, lo cual es crucial para mapear coordenadas
+ *   (por ejemplo, para la herramienta de inpainting).
+ *
+ * `ProductThumbnailImage`:
+ * - Un componente que muestra una miniatura de imagen individual.
+ * - Carga la imagen de forma asíncrona desde una ruta de archivo utilizando `window.electronAPI.loadImage`.
+ * - Muestra un esqueleto (placeholder) animado mientras la imagen se está cargando.
+ *
+ * `ProductThumbnails`:
+ * - Un componente que renderiza una tira horizontal de miniaturas para todas las imágenes asociadas a un producto.
+ * - Permite la navegación horizontal mediante la rueda del ratón.
+ * - Resalta la imagen que se está mostrando actualmente en el lienzo principal.
+ * - Marca la imagen que es la "principal" del producto.
+ * - Utiliza `React.memo` para optimizar el rendimiento, evitando re-renderizados innecesarios.
+ *
+ * `useImageManager` (Hook personalizado):
+ * - El núcleo de la lógica de gestión de imágenes.
+ * - Mantiene el estado de la imagen actual, su ruta, el factor de zoom, el paneo, etc.
+ * - Proporciona funciones para cargar, mostrar, hacer zoom y panear la imagen.
+ * - Gestiona el arrastre (paneo) de la imagen con el botón derecho del ratón.
+ * - Integra la herramienta `InpaintingTool`, pasando las referencias y el estado necesarios.
+ * - Maneja el guardado de imágenes editadas (por ejemplo, después de usar inpainting) antes de cambiar a otra imagen.
+ * - Proporciona una función `loadCurrentProduct` para cargar un nuevo producto y sus imágenes asociadas.
+ *
+ * `ImageManager` (Componente principal):
+ * - El componente que une todo.
+ * - Utiliza el hook `useImageManager` para obtener toda la lógica y el estado.
+ * - Renderiza el lienzo principal donde se muestra la imagen.
+ * - Incluye los controles de zoom y reseteo.
+ * - Envuelve los controles en el componente `InpaintingTool` para añadir la funcionalidad de edición.
+ * - Muestra el componente `ProductThumbnails` para la selección de imágenes.
+ * - Configura todos los listeners de eventos necesarios (redimensionamiento de ventana, rueda del ratón, clics)
+ *   y los conecta a las funciones correspondientes del hook `useImageManager`.
+ */
+
 // components/ImageManager.js
 import React, { useState, useRef, useEffect } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';

@@ -1,3 +1,27 @@
+/**
+ * @file VirtualizedImageGrid.jsx
+ * @description Este componente renderiza una cuadrícula de imágenes de manera virtualizada,
+ * lo que significa que solo renderiza los elementos que son visibles en la pantalla.
+ * Esto es crucial para el rendimiento cuando se manejan grandes cantidades de imágenes.
+ *
+ * Utiliza la librería `react-window` para lograr la virtualización.
+ *
+ * Funcionalidades clave:
+ * - **Virtualización:** Usa `FixedSizeGrid` de `react-window` para renderizar solo las celdas (imágenes)
+ *   visibles, manteniendo un rendimiento alto incluso con miles de imágenes.
+ * - **Carga Perezosa (Lazy Loading):** Cada celda de la cuadrícula utiliza el componente `LazyImage`,
+ *   asegurando que las imágenes solo se carguen desde el disco cuando están a punto de volverse visibles.
+ * - **Interactividad:**
+ *   - Permite la selección de imágenes (`onImageClick`).
+ *   - Permite designar una imagen como "principal" (`onSetPrimary`).
+ * - **Estilo Dinámico:**
+ *   - Muestra un borde de color diferente en cada imagen según su estado (seleccionada, principal,
+ *     producto principal existente, etc.), utilizando la función `getBorderColor` pasada como prop.
+ *   - Muestra un botón "P" en las imágenes seleccionadas para marcarlas como principal.
+ * - **Configurable:** Acepta props para personalizar el número de ítems por fila, el ancho y alto de los ítems,
+ *   y la altura del contenedor, lo que lo hace reutilizable en diferentes contextos.
+ */
+
 import { useState, useEffect, useMemo } from 'react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import LazyImage from './components/LazyImage';

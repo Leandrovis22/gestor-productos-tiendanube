@@ -2,6 +2,22 @@
 import React, { useMemo } from 'react';
 
 /**
+ * @file CategoryGroups.jsx
+ * @description Este componente se encarga de mostrar y gestionar la selección de categorías de productos.
+ * Las categorías se reciben como una lista de rutas completas (ej: "Joyas > Aros > Argollas").
+ *
+ * Funcionalidades clave:
+ * - **Agrupación de categorías:** Agrupa las categorías por su nombre final (la parte después del último ' > ').
+ *   Por ejemplo, "Joyas > Aros > Argollas" y "Plata > Aros > Argollas" se agruparían bajo "Argollas".
+ * - **Ordenamiento inteligente:** Ordena los grupos para que aquellos que contienen categorías seleccionadas
+ *   aparezcan primero, facilitando la visualización de las selecciones actuales. El resto de los grupos se ordena alfabéticamente.
+ * - **Renderizado de botones:** Muestra cada ruta de categoría completa como un botón clickeable.
+ * - **Gestión de selección:** Utiliza la función `onToggleCategory` (pasada como prop) para comunicar
+ *   la selección o deselección de una categoría al componente padre.
+ * - **Estilo dinámico:** Cambia el estilo de los botones para resaltar las categorías que están seleccionadas.
+ */
+
+/**
  * Agrupa las categorías por su nombre final (ej: "Argollas").
  * @param {string[]} categories - Lista de rutas de categorías completas.
  * @returns {Map<string, string[]>} - Un Map donde la clave es el nombre del grupo

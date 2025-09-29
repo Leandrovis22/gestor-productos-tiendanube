@@ -1,3 +1,33 @@
+/**
+ * @file ProductEditor.jsx
+ * @description Este archivo define el editor de detalles de un producto, que está dividido en dos secciones principales:
+ * "General" y "Variantes". Permite al usuario modificar el nombre, precio, stock, categorías y variantes de un producto.
+ *
+ * `GeneralForm`:
+ * - Un componente de formulario para editar los datos básicos del producto: nombre, precio y stock (si no hay variantes).
+ * - Muestra las categorías seleccionadas actualmente.
+ * - Incluye el componente `CategoryGroups` para permitir al usuario seleccionar y deseleccionar categorías de una lista completa.
+ *
+ * `VariantsForm`:
+ * - Un componente de formulario para crear y gestionar las variantes de un producto.
+ * - Permite al usuario habilitar y seleccionar propiedades como "Color", "Talle" y un tipo personalizable (ej: "Material").
+ * - Para "Color" y "Talle", muestra botones predefinidos que el usuario puede seleccionar. Incluye opciones para
+ *   seleccionar/deseleccionar todos.
+ * - Para el tipo personalizable, el usuario puede definir un nombre (ej: "Material") y una lista de valores (ej: "Plata", "Acero").
+ * - Ofrece sugerencias de tipos y valores predefinidos para agilizar la entrada de datos.
+ * - Incluye una funcionalidad para agregar nuevos colores al sistema, con un selector de color y guardado en la configuración.
+ * - Muestra los colores con su correspondiente fondo de color para una mejor visualización.
+ * - Una vez que se seleccionan las propiedades, un botón "Generar Combinaciones" crea todas las posibles variantes
+ *   (ej: "Rojo - S", "Rojo - M", "Azul - S", "Azul - M").
+ * - Muestra una lista de las combinaciones generadas, permitiendo al usuario establecer un precio y stock específico para cada una.
+ *
+ * `ProductEditor` (Componente principal):
+ * - El componente que organiza las pestañas "General" y "Variantes".
+ * - Recibe todo el estado y las funciones de manejo de estado desde un componente padre (probablemente a través de un hook como `useProductFormManager`).
+ * - Renderiza `GeneralForm` o `VariantsForm` según la pestaña activa (`activeTab`).
+ * - Actúa como un contenedor que pasa todas las props necesarias a los formularios correspondientes.
+ */
+
 // components/ProductEditor.js
 import React from 'react';
 import { CategoryGroups } from './CategoryGroups';

@@ -1,3 +1,52 @@
+/**
+ * @file useProductManager.js
+ * @description Este es un hook personalizado de React (`useProductManager`) que encapsula la lógica de negocio
+ * principal para la gestión de productos. Se encarga de interactuar con el sistema de archivos a través
+ * de la API de Electron, gestionar el estado de los productos, la cola de procesamiento de imágenes y
+ * el ciclo de vida general de la aplicación.
+ *
+ * `useProductManager` (Hook principal):
+ * - **Gestión de Estado:**
+ *   - **Archivos y Directorios:** Mantiene el estado de la ruta del archivo CSV (`csvPath`), el directorio de trabajo
+ *     (`workingDirectory`) y la ruta del CSV de salida (`outputCsvPath`).
+ *   - **Cola de Procesamiento:** Gestiona la `imageQueue` (la lista de imágenes de productos a procesar) y el
+ *     `currentImageIndex` (el índice del producto actual en la cola).
+ *   - **Estado del Producto Actual:** Almacena el mapa de relaciones de imágenes (`productImagesMap`), la imagen principal
+ *     del producto actual (`currentMainProductImage`) y todas las imágenes asociadas a él (`currentProductAllImages`).
+ *   - **Estado de la Aplicación:** Controla si todos los productos han sido procesados (`allProductsProcessed`) y mantiene
+ *     un `Set` de imágenes ya guardadas (`savedImages`) para evitar duplicados.
+ *   - **Configuración:** Carga y mantiene la configuración de la aplicación (`config`) desde un archivo persistente.
+ *
+ * - **Funciones Expuestas:**
+ *   - **Selección de Archivos/Directorios:**
+ *     - `selectCsvFile()`: Abre un diálogo para que el usuario seleccione el archivo `resultado.csv`. Al seleccionarlo,
+ *       automáticamente establece el directorio de trabajo, crea el CSV de salida y carga los datos.
+ *     - `selectWorkingDirectory()`: Permite al usuario cambiar el directorio de trabajo manualmente.
+ *   - **Carga de Datos:**
+ *     - `loadCsvData(filePath)`: Lee el contenido del archivo CSV y lo carga en el estado `csvData`.
+ *     - `loadConfig()`: Carga la configuración de la aplicación (categorías, variantes, etc.) desde una ubicación fija.
+ *     - `loadProductImagesMap()`: Carga el mapeo de imágenes principales y secundarias desde `imagenes_producto.csv`.
+ *     - `loadImagesFromData(data)`: Construye la `imageQueue` inicial a partir de los datos del CSV, filtrando
+ *       imágenes que ya han sido procesadas o saltadas.
+ *   - **Gestión del Ciclo de Vida del Producto:**
+ *     - `updateThumbnails(mainImageFilename)`: Actualiza las miniaturas de imágenes para el producto actual.
+ *     - `saveCurrentProduct(productData, variantCombinations)`: Guarda los datos del producto actual y sus variantes
+ *       en el archivo `salida.csv` y actualiza el mapeo de URL de imagen.
+ *     - `nextProduct(onImageReset, onFormReset)`: Mueve los archivos de imagen del producto actual a la carpeta `procesadas`,
+ *       elimina el producto de la cola y carga el siguiente.
+ *     - `skipProduct(onImageReset, onFormReset)`: Mueve los archivos de imagen del producto actual a la carpeta `saltadas`
+ *       y carga el siguiente producto.
+ *   - **Sincronización y Utilidades:**
+ *     - `syncCsvDataWithDisk()`: Sincroniza el estado `csvData` con el estado real de los archivos en el disco,
+ *       eliminando del estado las imágenes que ya han sido movidas a `procesadas` o `saltadas`.
+ *     - `restartApp()`: Restablece todo el estado de la aplicación a sus valores iniciales.
+ *
+ * - **Efectos (`useEffect`):**
+ *   - Se utilizan para reaccionar a cambios en el estado (como la selección de un directorio de trabajo) y
+ *     desencadenar acciones secundarias, como la creación de carpetas necesarias (`procesadas`, `saltadas`)
+ *     y la carga de datos inicial.
+ */
+
 // hooks/useProductManager.js
 import { useState, useEffect } from 'react';
 

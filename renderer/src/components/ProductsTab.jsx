@@ -1,3 +1,50 @@
+/**
+ * @file ProductsTab.jsx
+ * @description Este componente es una pestaña completa para la gestión de productos de TiendaNube.
+ * Permite al usuario seleccionar un directorio de trabajo, ver una lista de productos existentes,
+ * editar productos individuales, y ver/restaurar productos eliminados.
+ *
+ * `DirectorySelector`:
+ * - Un componente que se muestra si no se ha seleccionado un directorio de trabajo.
+ * - Permite al usuario seleccionar la carpeta que contiene los archivos CSV y las imágenes de los productos.
+ *
+ * `ListView`:
+ * - Muestra una cuadrícula de todos los productos cargados desde `salida.csv`.
+ * - Cada producto se muestra con su imagen principal, nombre, precio y número de variantes e imágenes.
+ * - Incluye una barra de búsqueda para filtrar productos por nombre o categoría.
+ * - Permite al usuario cambiar a la vista de "productos eliminados" o crear un nuevo producto (funcionalidad futura).
+ * - Al hacer clic en un producto, se abre la `EditView` para ese producto.
+ *
+ * `DeletedView`:
+ * - Muestra una lista de productos que han sido eliminados.
+ * - La información se carga desde un archivo `salida.csv` dentro de una carpeta `eliminados`.
+ * - Permite al usuario restaurar un producto, moviendo sus datos de vuelta a los archivos principales.
+ *
+ * `EditView`:
+ * - La vista de edición para un producto individual, que se activa al seleccionar un producto en `ListView`.
+ * - Está organizada en dos pestañas: "General" y "Variantes".
+ * - **Pestaña General:** Permite editar el nombre, precio base, stock base y categorías del producto.
+ *   También muestra todas las imágenes asociadas al producto y permite eliminarlas.
+ * - **Pestaña Variantes:** Permite al usuario definir y generar variantes del producto basadas en propiedades
+ *   como "Color", "Talle" y un tipo personalizable.
+ *   - El usuario puede seleccionar qué propiedades usar y qué valores aplicar para cada una.
+ *   - Un botón "Generar Combinaciones" crea todas las posibles variantes.
+ *   - Se muestra una lista de las variantes generadas, donde el usuario puede ajustar el precio y el stock de cada una.
+ * - Incluye botones para guardar los cambios, cancelar la edición o eliminar el producto.
+ *
+ * `ProductsTab` (Componente principal):
+ * - El componente que orquesta todas las vistas y la lógica.
+ * - Mantiene el estado principal de la aplicación, incluyendo la lista de productos, el producto actual en edición,
+ *   la vista activa ('list', 'edit', 'deleted'), y la configuración de la aplicación.
+ * - Contiene toda la lógica para interactuar con el backend de Electron (`window.electronAPI`) para:
+ *   - Leer y escribir archivos CSV (`salida.csv`, `imagen-url.csv`).
+ *   - Cargar imágenes desde el sistema de archivos.
+ *   - Eliminar y restaurar productos (moviendo archivos entre directorios).
+ *   - Cargar la configuración de la aplicación (colores, talles, etc.).
+ * - Gestiona el estado de los formularios de edición y la creación de variantes.
+ * - Pasa el estado y las funciones necesarias a los componentes de vista (`ListView`, `EditView`, etc.).
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Package, 

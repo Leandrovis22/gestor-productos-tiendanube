@@ -1,3 +1,51 @@
+/**
+ * @file TiendaNubeProductManager.jsx
+ * @description Este es el componente principal y orquestador de toda la aplicación de gestión de productos.
+ * Integra y coordina varios componentes y hooks personalizados para proporcionar una interfaz completa
+ * para procesar, editar y combinar productos de TiendaNube.
+ *
+ * `FileSelector`:
+ * - Un componente que permite al usuario seleccionar el archivo `resultado.csv` y el directorio de trabajo.
+ * - Es el punto de partida para cargar los datos de los productos.
+ *
+ * `EditorTabs`:
+ * - Renderiza las pestañas de navegación principales: "General", "Variantes", "Combinar" y "Productos Completados".
+ * - Permite al usuario cambiar entre las diferentes secciones de la aplicación.
+ *
+ * `ProcessedScreen`:
+ * - Una pantalla que se muestra cuando todos los productos de la cola han sido procesados.
+ * - Ofrece opciones para reiniciar la aplicación o cerrarla.
+ *
+ * `TiendaNubeProductManager` (Componente principal):
+ * - **Orquestación de Hooks:** Utiliza tres hooks personalizados principales:
+ *   - `useProductManager`: Gestiona la lógica de negocio de los productos (cargar CSV, guardar, saltar, siguiente producto, etc.).
+ *   - `useProductFormManager`: Gestiona el estado y la lógica del formulario de edición del producto (nombre, precio, variantes, categorías).
+ *   - `useImageManager`: Gestiona la visualización y edición de imágenes en el lienzo (zoom, paneo, inpainting).
+ *
+ * - **Gestión de Estado:** Mantiene el estado de la pestaña activa (`activeTab`) y el estado de procesamiento (`isProcessing`).
+ *
+ * - **Flujo de Trabajo Principal:**
+ *   1. El usuario selecciona un archivo `resultado.csv`. El `useProductManager` carga los datos y la cola de imágenes.
+ *   2. La primera imagen y sus datos se cargan en `ImageManager` y `ProductEditor` respectivamente.
+ *   3. El usuario edita los detalles del producto en `ProductEditor` (pestañas "General" y "Variantes").
+ *   4. El usuario puede usar `InpaintingTool` (dentro de `ImageManager`) para editar la imagen.
+ *   5. Al hacer clic en "Guardar y Siguiente", el componente:
+ *      - Guarda cualquier edición de imagen pendiente.
+ *      - Guarda los datos del producto (incluidas las variantes) en `resultado.csv` y `salida.csv`.
+ *      - Mueve la imagen procesada a la carpeta `procesadas`.
+ *      - Carga el siguiente producto de la cola.
+ *   6. El usuario también puede "Saltar" un producto, moviéndolo a la carpeta `saltadas`.
+ *
+ * - **Integración de Pestañas:**
+ *   - **Pestaña "Combinar":** Renderiza el componente `CombineProducts`, que permite fusionar varios productos en uno solo.
+ *     Maneja la actualización del estado de la aplicación cuando se guarda una combinación.
+ *   - **Pestaña "Productos":** Renderiza el componente `ProductsTab`, que ofrece una vista de gestión de productos ya completados,
+ *     permitiendo editarlos, ver eliminados, etc.
+ *
+ * - **Componente Contenedor:** Actúa como el contenedor principal que ensambla `Header`, `ImageManager`, y `ProductEditor`
+ *   en el layout principal de la aplicación, pasando todas las props y funciones necesarias.
+ */
+
 // components/TiendaNubeProductManager.js
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, SkipForward, FileText, FolderOpen, Package } from 'lucide-react';

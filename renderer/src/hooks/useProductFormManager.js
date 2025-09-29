@@ -1,3 +1,48 @@
+/**
+ * @file useProductFormManager.js
+ * @description Este es un hook personalizado de React (`useProductFormManager`) diseñado para encapsular
+ * toda la lógica y el estado relacionados con el formulario de edición de un producto.
+ * Su propósito es mantener el componente principal (`TiendaNubeProductManager`) más limpio y organizado,
+ * separando la gestión del formulario en una unidad cohesiva y reutilizable.
+ *
+ * `buildCategoryTree`:
+ * - Una función auxiliar que convierte una lista plana de categorías (ej: "Joyas > Aros") en una
+ *   estructura de árbol jerárquica. Esto es útil para renderizar menús de categorías anidados, aunque
+ *   actualmente el componente `CategoryGroups` no lo utiliza de forma jerárquica.
+ *
+ * `useProductFormManager` (Hook principal):
+ * - **Gestión de Estado:**
+ *   - **Datos Básicos:** Mantiene el estado para `productName`, `productPrice`, `productStock`, y `selectedCategories`.
+ *   - **Variantes:** Gestiona el estado de las variantes, incluyendo si se usan colores, talles o tipos (`useColor`, `useSize`, `useType`),
+ *     las selecciones actuales (`selectedColors`, `selectedSizes`), el nombre y los valores del tipo personalizado (`typeName`, `typeValues`),
+ *     y la lista de combinaciones de variantes generadas (`variantCombinations`).
+ *   - **Configuración:** Almacena datos de configuración cargados desde un archivo externo, como la lista completa de categorías,
+ *     colores predefinidos, talles, tipos y un mapa de colores para la visualización.
+ *
+ * - **Funciones Expuestas:**
+ *   - **Carga de Datos:**
+ *     - `loadConfig(config)`: Carga la configuración de la aplicación (categorías, variantes predefinidas, etc.).
+ *     - `loadProductData(filename, data)`: Carga los datos de un producto específico desde el CSV `resultado.csv`
+ *       y los establece en el estado del formulario.
+ *   - **Gestión de Categorías:**
+ *     - `toggleCategory(category)`: Añade o elimina una categoría del conjunto de categorías seleccionadas.
+ *   - **Gestión de Variantes:**
+ *     - `toggleColor`, `toggleSize`: Gestionan la selección de colores y talles.
+ *     - `selectAllColors`, `clearAllColors`, `selectAllSizes`, `clearAllSizes`: Funciones de utilidad para la selección masiva.
+ *     - `generateVariantCombinations()`: La lógica principal para crear todas las combinaciones posibles a partir de las
+ *       propiedades de variante seleccionadas (colores, talles, tipo).
+ *     - `updateVariantPrice`, `updateVariantStock`: Actualizan el precio y el stock de una combinación de variante específica.
+ *     - `onSelectPredefinedType`: Permite al usuario rellenar rápidamente el formulario de tipo personalizado seleccionando
+ *       uno de una lista de sugerencias.
+ *   - **Gestión del Formulario:**
+ *     - `resetForm()`: Restablece todo el formulario a su estado inicial.
+ *     - `resetVariants()`: Restablece solo la sección de variantes.
+ *     - `getProductData()`: Recopila y devuelve los datos actuales del formulario en un formato listo para ser guardado.
+ *
+ * - **Memoización:** Utiliza `useMemo` para construir el `categoryTree` solo cuando la lista de categorías cambia,
+ *   optimizando el rendimiento.
+ */
+
 // hooks/useProductFormManager.js
 import { useState, useEffect, useMemo } from 'react';
 
